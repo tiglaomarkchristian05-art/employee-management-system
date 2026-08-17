@@ -1,0 +1,18 @@
+# Local environment overrides
+.env
+.env.*
+!.env.example
+
+# Runtime-generated and uploaded files
+uploads/
+backups/
+documents/
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
