@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function () {
         toggleEyeBtn.addEventListener('click', function () {
             const isPass = passwordInput.type === 'password';
             passwordInput.type = isPass ? 'text' : 'password';
-            eyeIcon.className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            eyeIcon.textContent = isPass ? 'visibility_off' : 'visibility';
         });
     }
 

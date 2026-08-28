@@ -7,7 +7,7 @@ class User extends Model {
 
     public function findByUsername($usernameOrEmail) {
         // Map Moses Group demo email credentials seamlessly
-        if (in_array($usernameOrEmail, ['admin@mosesgroup.ph', 'admin@apexhr.com'])) $usernameOrEmail = 'admin';
+        if (in_array($usernameOrEmail, ['admin@ismers.local', 'admin@mosesgroup.ph', 'admin@apexhr.com'])) $usernameOrEmail = 'admin';
         if (in_array($usernameOrEmail, ['hr@mosesgroup.ph', 'hr@apexhr.com'])) $usernameOrEmail = 'hr_manager';
         if (in_array($usernameOrEmail, ['employee@mosesgroup.ph', 'employee@apexhr.com'])) $usernameOrEmail = 'employee';
 
