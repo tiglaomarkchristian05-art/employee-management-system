@@ -5,7 +5,7 @@ require_once ROOT_PATH . 'core/Model.php';
 class Compliance extends Model {
     protected $table = 'gov_contributions';
 
-    public function getContributionsWithDetails($month = null, $year = null) {
+    public function getContributionsWithDetails($month = null, $year = null, $employeeId = null) {
         $sql = "SELECT c.*, e.first_name, e.last_name, e.employee_code, e.sss_no, e.philhealth_no, e.pagibig_no, e.tin_no, d.name as department_name
                 FROM gov_contributions c
                 JOIN employees e ON c.employee_id = e.id
@@ -20,6 +20,10 @@ class Compliance extends Model {
         if ($year) {
             $conditions[] = "c.period_year = ?";
             $params[] = $year;
+        }
+        if ($employeeId) {
+            $conditions[] = "c.employee_id = ?";
+            $params[] = $employeeId;
         }
 
         if (!empty($conditions)) {

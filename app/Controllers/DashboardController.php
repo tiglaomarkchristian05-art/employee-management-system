@@ -22,6 +22,27 @@ class DashboardController extends Controller {
         $user = Auth::user();
         $empId = $user['employee_id'];
 
+        if (Auth::isSelfService()) {
+            $employeeId = Auth::employeeId();
+            $registrations = $trainingModel->getRegistrationsWithDetails($employeeId);
+            $documents = $documentModel->getDocumentsWithDetails($employeeId);
+            $claims = $benefitModel->getClaimsWithDetails($employeeId);
+            $separations = $separationModel->getSeparationsWithDetails($employeeId);
+            $data = [
+                'user' => $user,
+                'registrations' => $registrations,
+                'training_completed' => count(array_filter($registrations, fn($row) => ($row['status'] ?? '') === 'Completed')),
+                'documents' => $documents,
+                'expiring_documents' => count(array_filter($documents, fn($row) => !empty($row['expiry_date']) && strtotime($row['expiry_date']) <= strtotime('+60 days'))),
+                'contributions' => $complianceModel->getContributionsWithDetails(null, null, $employeeId),
+                'claims' => $claims,
+                'pending_claims' => count(array_filter($claims, fn($row) => ($row['status'] ?? '') === 'Pending')),
+                'separations' => $separations
+            ];
+            $this->view('dashboard/employee', $data);
+            return;
+        }
+
         $data = [
             'user'             => $user,
             'total_employees'  => $employeeModel->getActiveCount(),

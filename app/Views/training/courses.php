@@ -42,9 +42,9 @@ require APP_PATH . 'Views/layouts/sidebar.php';
                         <td class="fw-bold text-success">₱<?= number_format($c['budget'], 2); ?></td>
                         <td><?= $c['start_date']; ?> to <?= $c['end_date']; ?></td>
                         <td>
-                            <button class="btn btn-sm btn-info fw-bold btn-register-course" data-id="<?= $c['id']; ?>">
+                            <?php if (Auth::isSelfService()): ?><button class="btn btn-sm btn-info fw-bold btn-register-course" data-id="<?= $c['id']; ?>">
                                 Register
-                            </button>
+                            </button><?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>

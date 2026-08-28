@@ -31,14 +31,16 @@ class Document extends Model {
         return $this->db->fetchAll($sql);
     }
 
-    public function getExpiringContracts($days = 30) {
+    public function getExpiringContracts($days = 30, $employeeId = null) {
         $sql = "SELECT c.*, e.first_name, e.last_name, e.employee_code
                 FROM contracts c
                 JOIN employees e ON c.employee_id = e.id
                 WHERE c.status = 'Active' 
                 AND c.end_date IS NOT NULL 
-                AND c.end_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL ? DAY)
-                ORDER BY c.end_date ASC";
-        return $this->db->fetchAll($sql, [$days]);
+                AND c.end_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL ? DAY)";
+        $params = [$days];
+        if ($employeeId) { $sql .= " AND c.employee_id = ?"; $params[] = $employeeId; }
+        $sql .= " ORDER BY c.end_date ASC";
+        return $this->db->fetchAll($sql, $params);
     }
 }

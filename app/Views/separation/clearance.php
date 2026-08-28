@@ -27,8 +27,10 @@ require APP_PATH . 'Views/layouts/sidebar.php';
                         <div class="d-flex align-items-center gap-2">
                             <?php if ($c['status'] === 'Cleared'): ?>
                                 <span class="badge badge-soft-success fs-6"><i class="fa-solid fa-check me-1"></i> Cleared</span>
-                            <?php else: ?>
+                            <?php elseif (Auth::isAdmin() || (Auth::hasRole(['Department Head']) && $c['department_name'] === 'Manager')): ?>
                                 <button class="btn btn-sm btn-success fw-bold btn-approve-clearance text-white" data-id="<?= $c['id']; ?>"><i class="fa-solid fa-signature me-1"></i> Sign-off</button>
+                            <?php else: ?>
+                                <span class="badge badge-soft-warning">Pending</span>
                             <?php endif; ?>
                         </div>
                     </div>

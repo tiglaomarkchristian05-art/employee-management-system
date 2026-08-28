@@ -42,16 +42,15 @@ class BenefitsController extends Controller {
     }
 
     public function submitClaim() {
-        Auth::requireAuth();
+        Auth::requireSelfService();
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
 
         $user = Auth::user();
-        $empId = intval($_POST['employee_id'] ?? $user['employee_id'] ?? 1);
-        if ($empId <= 0) {
-            $empId = 1;
-        }
+        $empId = Auth::isAdmin() ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
+        if ($empId <= 0) $this->json('error', 'A valid employee is required.');
 
         $benefitId = intval($_POST['benefit_id'] ?? 1);
         $claimType = sanitize_input($_POST['claim_type'] ?? '');
@@ -79,16 +78,15 @@ class BenefitsController extends Controller {
     }
 
     public function requestLoan() {
-        Auth::requireAuth();
+        Auth::requireSelfService();
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
 
         $user = Auth::user();
-        $empId = intval($_POST['employee_id'] ?? $user['employee_id'] ?? 1);
-        if ($empId <= 0) {
-            $empId = 1;
-        }
+        $empId = Auth::isAdmin() ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
+        if ($empId <= 0) $this->json('error', 'A valid employee is required.');
 
         $loanType = sanitize_input($_POST['loan_type'] ?? 'Emergency');
         $principal = floatval($_POST['principal_amount'] ?? 0);
@@ -124,6 +122,7 @@ class BenefitsController extends Controller {
 
     public function adminRequestLoan() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -166,6 +165,7 @@ class BenefitsController extends Controller {
 
     public function adminSubmitClaim() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -201,6 +201,7 @@ class BenefitsController extends Controller {
 
     public function adminGrantAllowance() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -246,6 +247,8 @@ class BenefitsController extends Controller {
 
     public function updateClaimStatus() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
 
         $claimId = intval($_POST['claim_id'] ?? $_GET['claim_id'] ?? 0);
         $status = sanitize_input($_POST['status'] ?? $_GET['status'] ?? 'Approved');
@@ -271,6 +274,8 @@ class BenefitsController extends Controller {
 
     public function updateLoanStatus() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
 
         $loanId = intval($_POST['loan_id'] ?? $_GET['loan_id'] ?? 0);
         $status = sanitize_input($_POST['status'] ?? $_GET['status'] ?? 'Active');
@@ -296,6 +301,8 @@ class BenefitsController extends Controller {
 
     public function deleteClaim() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
 
         $claimId = intval($_POST['claim_id'] ?? $_GET['claim_id'] ?? 0);
         if ($claimId > 0) {
@@ -313,6 +320,8 @@ class BenefitsController extends Controller {
 
     public function deleteLoan() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
 
         $loanId = intval($_POST['loan_id'] ?? $_GET['loan_id'] ?? 0);
         if ($loanId > 0) {
@@ -330,6 +339,7 @@ class BenefitsController extends Controller {
 
     public function addLoanPayment() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -372,6 +382,7 @@ class BenefitsController extends Controller {
 
     public function createAllowance() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -401,6 +412,7 @@ class BenefitsController extends Controller {
 
     public function assignAllowance() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -427,6 +439,7 @@ class BenefitsController extends Controller {
 
     public function deleteAllowance() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }

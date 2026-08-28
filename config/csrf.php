@@ -17,14 +17,11 @@ if (!function_exists('csrf_token')) {
 
 if (!function_exists('verify_csrf_token')) {
     function verify_csrf_token($token) {
-        if (!empty($token) && isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token)) {
-            return true;
-        }
-        if (!empty($token)) {
-            $_SESSION['csrf_token'] = $token;
-            return true;
-        }
-        return false;
+        return is_string($token)
+            && $token !== ''
+            && isset($_SESSION['csrf_token'])
+            && is_string($_SESSION['csrf_token'])
+            && hash_equals($_SESSION['csrf_token'], $token);
     }
 }
 

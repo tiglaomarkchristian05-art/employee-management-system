@@ -50,26 +50,64 @@ document.addEventListener('DOMContentLoaded', function () {
                 datasets: [{
                     label: 'Current Candidate Competency',
                     data: [85, 75, 90, 70, 65, 80],
-                    backgroundColor: 'rgba(43, 122, 158, 0.25)',
-                    borderColor: '#2B7A9E',
-                    pointBackgroundColor: '#2B7A9E'
+                    backgroundColor: 'rgba(81, 69, 229, 0.16)',
+                    borderColor: '#5145E5',
+                    borderWidth: 2.5,
+                    pointBackgroundColor: '#FFFFFF',
+                    pointBorderColor: '#5145E5',
+                    pointBorderWidth: 2,
+                    pointRadius: 3.5,
+                    pointHoverRadius: 5
                 }, {
                     label: 'Foreign Principal Target Benchmark',
                     data: [90, 85, 95, 85, 80, 85],
-                    backgroundColor: 'rgba(46, 175, 107, 0.15)',
-                    borderColor: '#2EAF6B',
-                    pointBackgroundColor: '#2EAF6B'
+                    backgroundColor: 'rgba(16, 185, 129, 0.10)',
+                    borderColor: '#10B981',
+                    borderWidth: 2.5,
+                    pointBackgroundColor: '#FFFFFF',
+                    pointBorderColor: '#10B981',
+                    pointBorderWidth: 2,
+                    pointRadius: 3.5,
+                    pointHoverRadius: 5
                 }]
             },
             options: {
                 responsive: true,
-                plugins: { legend: { labels: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: '600' } } } },
+                maintainAspectRatio: false,
+                layout: { padding: { top: 4, right: 12, bottom: 8, left: 12 } },
+                interaction: { mode: 'nearest', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        align: 'start',
+                        labels: {
+                            color: '#334155',
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            padding: 14,
+                            font: { family: 'Plus Jakarta Sans', size: 10, weight: '600' }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#111827',
+                        titleColor: '#FFFFFF',
+                        bodyColor: '#E2E8F0',
+                        padding: 11,
+                        cornerRadius: 9,
+                        displayColors: true
+                    }
+                },
                 scales: {
                     r: {
-                        angleLines: { color: gridColor },
-                        grid: { color: gridColor },
-                        pointLabels: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: '600' } },
-                        ticks: { backdropColor: 'transparent', color: textColor }
+                        min: 60,
+                        max: 100,
+                        beginAtZero: false,
+                        angleLines: { color: '#E2E8F0', lineWidth: 1 },
+                        grid: { color: '#E2E8F0', circular: false },
+                        pointLabels: { color: '#475569', padding: 12, font: { family: 'Plus Jakarta Sans', size: 10, weight: '600' } },
+                        ticks: { stepSize: 10, showLabelBackdrop: false, color: '#94A3B8', font: { size: 8 } }
                     }
                 }
             }

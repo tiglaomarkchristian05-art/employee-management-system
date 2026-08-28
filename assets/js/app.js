@@ -10,20 +10,38 @@ document.addEventListener('DOMContentLoaded', function () {
     const mainContent = document.getElementById('main-content');
     const footer = document.querySelector('footer');
 
-    // Restore saved sidebar collapsed state
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const mobileQuery = window.matchMedia('(max-width: 900px)');
+
+    // Restore saved desktop sidebar state without flashing the wrong mobile state.
     const isCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
-    if (isCollapsed) {
+    if (isCollapsed && !mobileQuery.matches) {
         applySidebarState(true);
     }
 
     if (sidebarToggleBtn) {
         sidebarToggleBtn.addEventListener('click', function () {
-            const currentlyCollapsed = sidebar.classList.contains('sidebar-collapsed');
-            const newState = !currentlyCollapsed;
+            if (mobileQuery.matches) {
+                const open = document.body.classList.toggle('mobile-sidebar-open');
+                this.setAttribute('aria-expanded', String(open));
+                return;
+            }
+            const newState = !sidebar.classList.contains('sidebar-collapsed');
             applySidebarState(newState);
-            localStorage.setItem('sidebar_collapsed', newState);
+            localStorage.setItem('sidebar_collapsed', String(newState));
         });
     }
+
+    if (backdrop) {
+        backdrop.addEventListener('click', function () {
+            document.body.classList.remove('mobile-sidebar-open');
+            if (sidebarToggleBtn) sidebarToggleBtn.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    document.querySelectorAll('#sidebar a').forEach(link => link.addEventListener('click', function () {
+        if (mobileQuery.matches) document.body.classList.remove('mobile-sidebar-open');
+    }));
 
     function applySidebarState(collapsed) {
         if (!sidebar) return;
@@ -32,6 +50,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (navbar) navbar.classList[action]('sidebar-collapsed');
         if (mainContent) mainContent.classList[action]('sidebar-collapsed');
         if (footer) footer.classList[action]('sidebar-collapsed');
+        document.body.classList[action]('sidebar-collapsed');
+        if (sidebarToggleBtn) {
+            sidebarToggleBtn.setAttribute('aria-expanded', String(!collapsed));
+            const icon = sidebarToggleBtn.querySelector('.material-symbols-outlined');
+            if (icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
+        }
     }
 
     // 2. Initialize DataTables with Highly Visible Solid Export Buttons
@@ -66,9 +90,21 @@ function confirmAction(title, text, confirmBtnText, callback) {
         text: text || "You won't be able to revert this action!",
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#2B7A9E',
-        cancelButtonColor: '#E74C3C',
-        confirmButtonText: confirmBtnText || 'Yes, proceed!'
+        showCloseButton: true,
+        reverseButtons: true,
+        buttonsStyling: false,
+        confirmButtonText: confirmBtnText || 'Yes, proceed!',
+        cancelButtonText: 'Cancel',
+        customClass: {
+            popup: 'core3-confirm-dialog',
+            icon: 'core3-confirm-icon',
+            title: 'core3-confirm-title',
+            htmlContainer: 'core3-confirm-copy',
+            actions: 'core3-confirm-actions',
+            confirmButton: 'core3-confirm-primary',
+            cancelButton: 'core3-confirm-cancel',
+            closeButton: 'core3-confirm-close'
+        }
     }).then((result) => {
         if (result.isConfirmed && typeof callback === 'function') {
             callback();
@@ -81,9 +117,24 @@ function showToast(icon, title) {
     const Toast = Swal.mixin({
         toast: true,
         position: 'top-end',
+        backdrop: false,
         showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true
+        showCloseButton: true,
+        timer: 3200,
+        timerProgressBar: true,
+        customClass: {
+            container: 'core3-toast-container',
+            popup: 'core3-toast',
+            icon: 'core3-toast-icon',
+            title: 'core3-toast-title',
+            closeButton: 'core3-toast-close',
+            timerProgressBar: 'core3-toast-progress'
+        },
+        didOpen: (toast) => {
+            toast.classList.add('core3-toast-' + icon);
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
+        }
     });
     Toast.fire({ icon: icon, title: title });
 }

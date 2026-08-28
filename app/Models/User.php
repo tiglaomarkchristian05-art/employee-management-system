@@ -11,7 +11,7 @@ class User extends Model {
         if (in_array($usernameOrEmail, ['hr@mosesgroup.ph', 'hr@apexhr.com'])) $usernameOrEmail = 'hr_manager';
         if (in_array($usernameOrEmail, ['employee@mosesgroup.ph', 'employee@apexhr.com'])) $usernameOrEmail = 'employee';
 
-        $sql = "SELECT u.*, r.name as role_name, e.first_name, e.last_name, e.department_id, d.name as department_name, e.photo
+        $sql = "SELECT u.*, r.name as role_name, e.first_name, e.last_name, e.email, e.department_id, d.name as department_name, e.photo
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 LEFT JOIN employees e ON u.employee_id = e.id

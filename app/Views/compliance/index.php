@@ -11,10 +11,10 @@ require APP_PATH . 'Views/layouts/sidebar.php';
             <h4 class="fw-bold text-light mb-1"><i class="fa-solid fa-landmark text-success me-2"></i> Government Contribution & Compliance (PH)</h4>
             <p class="text-secondary mb-0">SSS, PhilHealth, Pag-IBIG HDMF remittance calculation, statutory schedules, and BIR 2316 Certificate generator</p>
         </div>
-        <div class="d-flex gap-2">
+        <?php if (Auth::isAdmin()): ?><div class="d-flex gap-2">
             <a href="index.php?page=compliance_calculator" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-calculator me-1"></i> Live Tax Calculator</a>
             <a href="index.php?page=compliance_bir2316" class="btn btn-success btn-sm fw-bold shadow"><i class="fa-solid fa-file-invoice-dollar me-1"></i> BIR 2316 Generator</a>
-        </div>
+        </div><?php else: ?><a href="index.php?page=compliance_bir2316" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-file-arrow-down me-1"></i> View My BIR 2316</a><?php endif; ?>
     </div>
 
     <div class="row g-3 mb-4">

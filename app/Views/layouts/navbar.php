@@ -1,23 +1,22 @@
 <?php
 $user = Auth::user();
 ?>
-<nav id="navbar" class="d-flex align-items-center justify-content-between">
-    <div class="d-flex align-items-center gap-3">
-        <button class="btn btn-sm btn-outline-secondary border-0 text-secondary" id="sidebar-toggle-btn">
-            <i class="fa-solid fa-bars fs-5"></i>
+<nav id="navbar" class="dashboard-topbar">
+    <div class="header-leading topbar-start">
+        <a class="navbar-crown topbar-brand" href="index.php?page=dashboard" aria-label="Core 3 dashboard"><span class="material-symbols-outlined">groups</span></a>
+        <span class="header-separator" aria-hidden="true"></span>
+        <button class="icon-button" id="sidebar-toggle-btn" type="button" aria-controls="sidebar" aria-expanded="true" aria-label="Toggle sidebar">
+            <span class="material-symbols-outlined">menu_open</span>
         </button>
-        <span class="fw-bold" style="font-size: 1.05rem; color: #0F172A;">
-            <?= APP_COMPANY; ?>
-        </span>
     </div>
 
-    <div class="d-flex align-items-center gap-3">
-        <div class="navbar-search-box d-none d-md-flex">
+    <div class="topbar-actions">
+        <div class="navbar-search-box d-none">
             <i class="fa-solid fa-magnifying-glass me-2" style="color:#94A3B8; font-size:0.85rem;"></i>
             <input type="text" class="navbar-search-input" placeholder="Search...">
         </div>
 
-        <div class="dropdown">
+        <div class="dropdown d-none">
             <button class="btn btn-sm border-0 rounded-circle position-relative" style="width:38px; height:38px; background-color: #F1F0F7;" data-bs-toggle="dropdown">
                 <i class="fa-solid fa-bell text-secondary"></i>
                 <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle"></span>
@@ -35,21 +34,23 @@ $user = Auth::user();
             </div>
         </div>
 
-        <div class="dropdown">
-            <div class="d-flex align-items-center gap-2 cursor-pointer" data-bs-toggle="dropdown">
-                <div class="avatar-circle text-white fw-bold rounded-circle d-flex align-items-center justify-content-center" style="width:36px; height:36px; background-color: var(--primary);">
+        <div class="dropdown profile-menu profile-dropdown-wrap">
+            <button type="button" class="profile-menu-trigger profile-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Account Menu">
+                <div class="avatar-circle profile-avatar">
                     <?= strtoupper(substr($user['full_name'], 0, 1)); ?>
                 </div>
-                <div class="d-none d-md-block text-start" style="line-height:1.2;">
+                <div class="profile-copy profile-meta d-none d-md-grid">
                     <div class="fw-bold" style="font-size:0.88rem; color: var(--text);"><?= htmlspecialchars($user['full_name']); ?></div>
                     <small style="font-size:0.75rem; color: var(--primary); font-weight:600;"><?= htmlspecialchars($user['role']); ?></small>
                 </div>
-            </div>
-            <ul class="dropdown-menu dropdown-menu-end glass-card shadow-lg mt-2">
+                <span class="material-symbols-outlined profile-chevron d-none d-sm-inline-block">expand_more</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end profile-dropdown shadow-lg mt-2">
                 <li><span class="dropdown-header">Logged in as <strong><?= htmlspecialchars($user['username']); ?></strong></span></li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" href="index.php?page=employees"><i class="fa-solid fa-user me-2"></i> My Profile</a></li>
-                <li><a class="dropdown-item text-danger" href="index.php?page=logout"><i class="fa-solid fa-right-from-bracket me-2"></i> Logout</a></li>
+                <li><a class="dropdown-item" href="index.php?page=<?= Auth::isSelfService() ? 'my_profile' : 'employees'; ?>"><span class="material-symbols-outlined">person</span><?= Auth::isSelfService() ? 'My Profile' : 'Employee Directory'; ?></a></li>
+                <li><a class="dropdown-item" href="index.php?page=<?= Auth::isSelfService() ? 'notifications' : (Auth::hasRole(['Super Admin']) ? 'admin_settings' : 'admin_users'); ?>"><span class="material-symbols-outlined"><?= Auth::isSelfService() ? 'notifications' : 'manage_accounts'; ?></span><?= Auth::isSelfService() ? 'Notifications' : 'Account Settings'; ?></a></li>
+                <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal"><span class="material-symbols-outlined">logout</span>Log Out</a></li>
             </ul>
         </div>
     </div>

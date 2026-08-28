@@ -24,25 +24,20 @@ class AuthController extends Controller {
             $userModel = new User();
             $user = $userModel->findByUsername($username);
 
-            // Demo password matching fallbacks
-            $isValid = false;
-            if ($user) {
-                if (verify_password($password, $user['password'])) {
-                    $isValid = true;
-                } else if (in_array($password, ['admin123', 'user123', 'Admin@123', 'Hr@123', 'Emp@123'])) {
-                    $isValid = true; // Fallback for instant demo access
-                }
-            }
+            $isValid = $user && verify_password($password, $user['password']);
 
             if ($user && $user['is_active'] && $isValid) {
+                session_regenerate_id(true);
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['full_name'] = !empty($user['first_name']) ? $user['first_name'] . ' ' . $user['last_name'] : $user['username'];
                 $_SESSION['role_name'] = $user['role_name'];
                 $_SESSION['role_id'] = $user['role_id'];
                 $_SESSION['employee_id'] = $user['employee_id'];
+                $_SESSION['email'] = $user['email'] ?? '';
                 $_SESSION['department_name'] = $user['department_name'] ?? 'General';
                 $_SESSION['avatar'] = $user['photo'] ?? 'default.png';
+                $_SESSION['is_active'] = (int)$user['is_active'];
 
                 // Update last login
                 $userModel->update($user['id'], ['last_login' => date('Y-m-d H:i:s')]);
@@ -59,6 +54,10 @@ class AuthController extends Controller {
     }
 
     public function logout() {
+        Auth::requireMethod('POST');
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+            Auth::deny('Invalid logout request.');
+        }
         if (Auth::check()) {
             AuditLogger::log('LOGOUT', 'Authentication', 'User logged out.');
             session_destroy();

@@ -10,18 +10,20 @@ class ComplianceController extends Controller {
 
         $complianceModel = new Compliance();
         $employeeModel = new Employee();
+        $isAdmin = Auth::isAdmin();
+        $employeeId = $isAdmin ? null : Auth::employeeId();
 
         $data = [
-            'contributions' => $complianceModel->getContributionsWithDetails(),
+            'contributions' => $complianceModel->getContributionsWithDetails(null, null, $employeeId),
             'deadlines'     => $complianceModel->getUpcomingDeadlines(),
-            'employees'     => $employeeModel->getAllWithDetails()
+            'employees'     => $isAdmin ? $employeeModel->getAllWithDetails() : []
         ];
 
         $this->view('compliance/index', $data);
     }
 
     public function calculator() {
-        Auth::requireAuth();
+        Auth::requireRole(['Super Admin']);
         $this->view('compliance/calculator');
     }
 
@@ -30,12 +32,13 @@ class ComplianceController extends Controller {
         $complianceModel = new Compliance();
         $employeeModel = new Employee();
 
-        $empId = intval($_GET['employee_id'] ?? 4);
+        $isAdmin = Auth::isAdmin();
+        $empId = $isAdmin ? intval($_GET['employee_id'] ?? 0) : Auth::employeeId();
         $year = intval($_GET['year'] ?? 2026);
 
         $data = [
             'bir_data'  => $complianceModel->getBIR2316Data($empId, $year),
-            'employees' => $employeeModel->getAllWithDetails()
+            'employees' => $isAdmin ? $employeeModel->getAllWithDetails() : []
         ];
 
         $this->view('compliance/bir2316', $data);
@@ -43,6 +46,7 @@ class ComplianceController extends Controller {
 
     public function generateContribution() {
         Auth::requireRole(['Super Admin', 'HR Manager', 'Finance']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }

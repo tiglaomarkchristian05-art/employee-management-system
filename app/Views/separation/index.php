@@ -8,11 +8,11 @@ require APP_PATH . 'Views/layouts/sidebar.php';
 
     <div class="d-flex align-items-center justify-content-between my-3">
         <div>
-            <h4 class="fw-bold mb-1" style="color: var(--text);"><i class="fa-solid fa-plane-departure text-danger me-2"></i> Overseas Deployment & Exit Clearance System</h4>
+            <h4 class="fw-bold mb-1" style="color: var(--text);"><i class="fa-solid fa-plane-departure text-danger me-2"></i> <?= Auth::isEmployee() ? 'My Clearance & Exit Status' : 'Overseas Deployment & Exit Clearance System'; ?></h4>
             <p class="text-secondary mb-0">Multi-department clearance routing (HR, IT, Finance, Security, Mgr), asset returns, final pay, and Certificate of Employment</p>
         </div>
-        <button class="btn btn-danger btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#initiateExitModal">
-            <i class="fa-solid fa-user-minus me-1"></i> Initiate Exit Clearance
+        <button class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#initiateExitModal">
+            <i class="fa-solid fa-user-minus me-1"></i> <?= Auth::isEmployee() ? 'Submit Separation Request' : 'Initiate Exit Clearance'; ?>
         </button>
     </div>
 
@@ -77,14 +77,14 @@ require APP_PATH . 'Views/layouts/sidebar.php';
             <form id="initiateExitForm">
                 <?= csrf_input(); ?>
                 <div class="modal-body">
-                    <div class="mb-3">
+                    <?php if (Auth::isAdmin()): ?><div class="mb-3">
                         <label class="form-label text-secondary fw-bold">Select Employee / Candidate</label>
                         <select class="form-select" name="employee_id" required>
                             <?php foreach ($employees as $e): ?>
                                 <option value="<?= $e['id']; ?>"><?= htmlspecialchars($e['first_name'] . ' ' . $e['last_name'] . ' (' . $e['employee_code'] . ')'); ?></option>
                             <?php endforeach; ?>
                         </select>
-                    </div>
+                    </div><?php endif; ?>
 
                     <div class="mb-3">
                         <label class="form-label text-secondary fw-bold">Separation Type</label>
@@ -113,7 +113,7 @@ require APP_PATH . 'Views/layouts/sidebar.php';
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger fw-bold"><i class="fa-solid fa-play me-1"></i> Start Routing & Clearance</button>
+                    <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-play me-1"></i> Start Routing & Clearance</button>
                 </div>
             </form>
         </div>

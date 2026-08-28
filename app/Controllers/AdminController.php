@@ -11,9 +11,13 @@ class AdminController extends Controller {
         $adminModel = new Admin();
         $employeeModel = new Employee();
 
+        $roles = $adminModel->getRoles();
+        if (Auth::hasRole(['HR Manager']) && !Auth::hasRole(['Super Admin'])) {
+            $roles = array_values(array_filter($roles, fn($role) => $role['name'] === 'Employee'));
+        }
         $data = [
             'users'     => $userModel->getAllUsersWithDetails(),
-            'roles'     => $adminModel->getRoles(),
+            'roles'     => $roles,
             'employees' => $employeeModel->getAllWithDetails()
         ];
         $this->view('admin/users', $data);
@@ -58,6 +62,7 @@ class AdminController extends Controller {
 
     public function restore() {
         Auth::requireRole(['Super Admin']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -75,6 +80,7 @@ class AdminController extends Controller {
 
     public function saveSettings() {
         Auth::requireRole(['Super Admin']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -93,6 +99,7 @@ class AdminController extends Controller {
 
     public function createUser() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -113,6 +120,12 @@ class AdminController extends Controller {
         }
 
         $userModel = new User();
+        if (!$userModel->db->fetchOne("SELECT id FROM roles WHERE id = ?", [$roleId])) {
+            $this->json('error', 'Invalid account role.');
+        }
+        if ($empId && $userModel->db->fetchOne("SELECT id FROM users WHERE employee_id = ?", [$empId])) {
+            $this->json('error', 'This employee already has a linked user account.');
+        }
         $existing = $userModel->db->fetchOne("SELECT id FROM users WHERE username = ?", [$username]);
         if ($existing) {
             $this->json('error', 'Username already exists.');
@@ -133,6 +146,7 @@ class AdminController extends Controller {
 
     public function toggleUserStatus() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -143,10 +157,9 @@ class AdminController extends Controller {
         }
 
         $userModel = new User();
-        $u = $userModel->find($userId);
-        if (!$u) {
-            $this->json('error', 'User account not found.');
-        }
+        $u = $this->loadManagedUser($userId);
+        $this->assertCanManageUser($u, 'change the status of');
+        if ($userId === intval(Auth::user()['id'])) $this->json('error', 'You cannot disable your own active session.');
 
         $newStatus = $u['is_active'] ? 0 : 1;
         $userModel->update($userId, ['is_active' => $newStatus]);
@@ -158,6 +171,7 @@ class AdminController extends Controller {
 
     public function updateUser() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -171,9 +185,12 @@ class AdminController extends Controller {
         }
 
         $userModel = new User();
-        $user = $userModel->find($userId);
-        if (!$user) {
-            $this->json('error', 'User not found.');
+        $user = $this->loadManagedUser($userId);
+        $this->assertCanManageUser($user, 'edit');
+        if (Auth::hasRole(['HR Manager']) && !Auth::hasRole(['Super Admin'])) $roleId = 4;
+        if (!$userModel->db->fetchOne("SELECT id FROM roles WHERE id = ?", [$roleId])) $this->json('error', 'Invalid account role.');
+        if ($empId && $userModel->db->fetchOne("SELECT id FROM users WHERE employee_id = ? AND id <> ?", [$empId, $userId])) {
+            $this->json('error', 'This employee already has a linked user account.');
         }
 
         $userModel->update($userId, [
@@ -187,6 +204,7 @@ class AdminController extends Controller {
 
     public function deleteUser() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -197,12 +215,10 @@ class AdminController extends Controller {
         }
 
         $userModel = new User();
-        $user = $userModel->find($userId);
-        if (!$user) {
-            $this->json('error', 'User not found.');
-        }
-
-        if ($user['username'] === 'admin@mosesgroup.ph') {
+        $user = $this->loadManagedUser($userId);
+        $this->assertCanManageUser($user, 'delete');
+        if ($userId === intval(Auth::user()['id'])) $this->json('error', 'You cannot delete your own active account.');
+        if ($user['username'] === 'admin' || intval($user['id']) === 1) {
             $this->json('error', 'The primary system admin account cannot be deleted.');
         }
 
@@ -213,6 +229,7 @@ class AdminController extends Controller {
 
     public function resetPassword() {
         Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -229,15 +246,26 @@ class AdminController extends Controller {
         }
 
         $userModel = new User();
-        $user = $userModel->find($userId);
-        if (!$user) {
-            $this->json('error', 'User not found.');
-        }
+        $user = $this->loadManagedUser($userId);
+        $this->assertCanManageUser($user, 'reset the password of');
 
         $hash = password_hash($newPass, PASSWORD_BCRYPT);
         $userModel->update($userId, ['password' => $hash]);
 
         AuditLogger::log('RESET_PASSWORD', 'System Admin', "Reset password for user '{$user['username']}'");
         $this->json('success', "Password for '{$user['username']}' has been reset to: {$newPass}");
+    }
+
+    private function loadManagedUser($userId) {
+        $userModel = new User();
+        $user = $userModel->db->fetchOne("SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?", [intval($userId)]);
+        if (!$user) $this->json('error', 'User account not found.', [], 404);
+        return $user;
+    }
+
+    private function assertCanManageUser($target, $action) {
+        if (Auth::hasRole(['HR Manager']) && !Auth::hasRole(['Super Admin']) && $target['role_name'] !== 'Employee') {
+            Auth::deny("HR Managers cannot {$action} privileged or management accounts.");
+        }
     }
 }

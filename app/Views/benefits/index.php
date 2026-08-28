@@ -88,8 +88,8 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                             <?php endif; ?>
                         </td>
                         <?php if ($isHRAdmin): ?>
-                        <td class="text-center">
-                            <div class="d-flex justify-content-center gap-1 flex-wrap">
+                        <td class="text-center table-action-cell">
+                            <div class="table-action-group">
                                 <?php if ($claim['status'] !== 'Approved'): ?>
                                     <a href="index.php?page=admin_update_claim_status&claim_id=<?= $claim['id']; ?>&status=Approved" class="btn btn-sm btn-success btn-update-claim fw-bold" data-id="<?= $claim['id']; ?>" data-status="Approved" title="Approve Claim">
                                         <i class="fa-solid fa-check me-1"></i> Approve

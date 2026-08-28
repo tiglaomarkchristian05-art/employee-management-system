@@ -50,7 +50,9 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                         <td><?= $u['last_login'] ?? 'Never'; ?></td>
                         <?php if ($isHRAdmin): ?>
                         <td class="text-center">
+                            <?php $canManageRow = Auth::hasRole(['Super Admin']) || ($u['role_name'] ?? '') === 'Employee'; ?>
                             <div class="d-flex justify-content-center gap-1">
+                                <?php if ($canManageRow): ?>
                                 <button class="btn btn-sm btn-outline-primary btn-edit-user" 
                                     data-id="<?= $u['id']; ?>" 
                                     data-username="<?= htmlspecialchars($u['username']); ?>"
@@ -65,11 +67,12 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                                 <button class="btn btn-sm btn-outline-info btn-reset-pass" data-id="<?= $u['id']; ?>" data-name="<?= htmlspecialchars($u['username']); ?>" title="Reset Password">
                                     <i class="fa-solid fa-key"></i>
                                 </button>
-                                <?php if ($u['username'] !== 'admin@mosesgroup.ph'): ?>
+                                <?php if ($u['username'] !== 'admin' && (int)$u['id'] !== (int)Auth::user()['id']): ?>
                                 <button class="btn btn-sm btn-outline-danger btn-delete-user" data-id="<?= $u['id']; ?>" data-name="<?= htmlspecialchars($u['username']); ?>" title="Delete User Account">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                                 <?php endif; ?>
+                                <?php else: ?><span class="badge badge-soft-primary">Protected account</span><?php endif; ?>
                             </div>
                         </td>
                         <?php endif; ?>

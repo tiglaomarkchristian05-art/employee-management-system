@@ -5,14 +5,17 @@ require_once ROOT_PATH . 'core/Model.php';
 class Separation extends Model {
     protected $table = 'separations';
 
-    public function getSeparationsWithDetails() {
+    public function getSeparationsWithDetails($employeeId = null) {
         $sql = "SELECT s.*, e.first_name, e.last_name, e.employee_code, e.hire_date, d.name as department_name, p.title as position_title
                 FROM separations s
                 JOIN employees e ON s.employee_id = e.id
                 LEFT JOIN departments d ON e.department_id = d.id
                 LEFT JOIN positions p ON e.position_id = p.id
-                ORDER BY s.id DESC";
-        return $this->db->fetchAll($sql);
+                ";
+        $params = [];
+        if ($employeeId) { $sql .= " WHERE s.employee_id = ?"; $params[] = $employeeId; }
+        $sql .= " ORDER BY s.id DESC";
+        return $this->db->fetchAll($sql, $params);
     }
 
     public function getClearanceStatus($separationId) {

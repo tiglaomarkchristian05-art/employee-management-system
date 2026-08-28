@@ -10,10 +10,12 @@ class SeparationController extends Controller {
 
         $separationModel = new Separation();
         $employeeModel = new Employee();
+        $isAdmin = Auth::isAdmin();
+        $employeeId = $isAdmin ? null : Auth::employeeId();
 
         $data = [
-            'separations' => $separationModel->getSeparationsWithDetails(),
-            'employees'   => $employeeModel->getAllWithDetails()
+            'separations' => $separationModel->getSeparationsWithDetails($employeeId),
+            'employees'   => $isAdmin ? $employeeModel->getAllWithDetails() : []
         ];
 
         $this->view('separation/index', $data);
@@ -29,6 +31,7 @@ class SeparationController extends Controller {
         if (!$sep) {
             die("Separation record not found.");
         }
+        if (Auth::isEmployee() && intval($sep['employee_id']) !== Auth::employeeId()) Auth::deny();
 
         $data = [
             'separation' => $sep,
@@ -46,6 +49,8 @@ class SeparationController extends Controller {
 
         $separationModel = new Separation();
         $sep = $separationModel->db->fetchOne("SELECT s.*, e.first_name, e.last_name, e.employee_code, e.hire_date, e.basic_salary, d.name as department_name, p.title as position_title FROM separations s JOIN employees e ON s.employee_id = e.id LEFT JOIN departments d ON e.department_id = d.id LEFT JOIN positions p ON e.position_id = p.id WHERE s.id = ?", [$separationId]);
+        if (!$sep) Auth::deny('Separation record not found.');
+        if (Auth::isEmployee() && intval($sep['employee_id']) !== Auth::employeeId()) Auth::deny();
 
         $data = [
             'separation' => $sep
@@ -55,13 +60,15 @@ class SeparationController extends Controller {
     }
 
     public function initiate() {
-        Auth::requireRole(['Super Admin', 'HR Manager', 'Employee']);
+        Auth::requireRole(['Super Admin', 'HR Manager', 'Department Head', 'Employee']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
 
         $user = Auth::user();
-        $empId = intval($_POST['employee_id'] ?? $user['employee_id']);
+        $empId = Auth::isAdmin() ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
+        if ($empId <= 0) $this->json('error', 'A valid employee is required.');
         $type = sanitize_input($_POST['separation_type'] ?? 'Resignation');
         $notice = $_POST['notice_date'] ?? date('Y-m-d');
         $effective = $_POST['effective_date'] ?? date('Y-m-d', strtotime('+30 days'));
@@ -111,6 +118,7 @@ class SeparationController extends Controller {
 
     public function updateClearance() {
         Auth::requireRole(['Super Admin', 'HR Manager', 'Department Head']);
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -121,6 +129,11 @@ class SeparationController extends Controller {
         $user = Auth::user();
 
         $separationModel = new Separation();
+        $clearance = $separationModel->db->fetchOne("SELECT id, department_name FROM clearances WHERE id = ?", [$clearanceId]);
+        if (!$clearance) $this->json('error', 'Clearance record not found.', [], 404);
+        if (Auth::hasRole(['Department Head']) && !Auth::isAdmin() && $clearance['department_name'] !== 'Manager') {
+            Auth::deny('Department Heads may only approve the Manager clearance stage.');
+        }
         $separationModel->db->update('clearances', [
             'status'         => $status,
             'cleared_by'     => $user['full_name'],

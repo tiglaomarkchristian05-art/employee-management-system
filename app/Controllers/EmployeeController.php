@@ -5,7 +5,7 @@ require_once APP_PATH . 'Models/Admin.php';
 
 class EmployeeController extends Controller {
     public function index() {
-        Auth::requireAuth();
+        Auth::requireAdmin();
 
         $employeeModel = new Employee();
         $adminModel = new Admin();
@@ -20,7 +20,8 @@ class EmployeeController extends Controller {
     }
 
     public function store() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireAdmin();
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -107,7 +108,8 @@ class EmployeeController extends Controller {
     }
 
     public function delete() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireAdmin();
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }
@@ -129,7 +131,7 @@ class EmployeeController extends Controller {
     }
 
     public function get() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireAdmin();
         $id = intval($_GET['id'] ?? $_POST['id'] ?? 0);
 
         if ($id <= 0) {
@@ -147,7 +149,8 @@ class EmployeeController extends Controller {
     }
 
     public function update() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requireAdmin();
+        Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
         }

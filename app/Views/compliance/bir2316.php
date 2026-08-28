@@ -16,6 +16,7 @@ require APP_PATH . 'Views/layouts/sidebar.php';
         <form method="GET" class="row g-2 align-items-center">
             <input type="hidden" name="page" value="compliance_bir2316">
             <div class="col-md-6">
+                <?php if (Auth::isAdmin()): ?>
                 <select class="form-select" name="employee_id" onchange="this.form.submit()">
                     <?php foreach ($employees as $e): ?>
                         <option value="<?= $e['id']; ?>" <?= ($bir_data && $bir_data['id'] == $e['id']) ? 'selected' : ''; ?>>
@@ -23,6 +24,9 @@ require APP_PATH . 'Views/layouts/sidebar.php';
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php else: ?>
+                <div class="form-control bg-light d-flex align-items-center"><i class="fa-solid fa-user-shield text-primary me-2"></i><?= htmlspecialchars(($bir_data['first_name'] ?? '').' '.($bir_data['last_name'] ?? '')); ?> — My tax certificate</div>
+                <?php endif; ?>
             </div>
             <div class="col-md-3">
                 <button type="button" class="btn btn-success fw-bold w-100" onclick="window.print()"><i class="fa-solid fa-print me-1"></i> Print / Export BIR 2316 PDF</button>

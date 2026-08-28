@@ -19,6 +19,7 @@ require_once APP_PATH . 'Controllers/ComplianceController.php';
 require_once APP_PATH . 'Controllers/BenefitsController.php';
 require_once APP_PATH . 'Controllers/SeparationController.php';
 require_once APP_PATH . 'Controllers/AdminController.php';
+require_once APP_PATH . 'Controllers/AccountController.php';
 
 $page = $_GET['page'] ?? (Auth::check() ? 'dashboard' : 'login');
 
@@ -31,6 +32,12 @@ switch ($page) {
         break;
     case 'dashboard':
         (new DashboardController())->index();
+        break;
+    case 'my_profile':
+        (new AccountController())->profile();
+        break;
+    case 'notifications':
+        (new AccountController())->notifications();
         break;
 
     case 'training':
@@ -51,6 +58,9 @@ switch ($page) {
     case 'training_submit_quiz':
         (new TrainingController())->submitQuiz();
         break;
+    case 'training_certificate':
+        (new TrainingController())->certificate();
+        break;
 
     case 'documents':
         (new DocumentController())->index();
@@ -63,6 +73,9 @@ switch ($page) {
         break;
     case 'documents_delete':
         (new DocumentController())->delete();
+        break;
+    case 'documents_download':
+        (new DocumentController())->download();
         break;
 
     case 'compliance':

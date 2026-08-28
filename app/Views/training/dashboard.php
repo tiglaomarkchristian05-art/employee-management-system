@@ -66,7 +66,7 @@ require APP_PATH . 'Views/layouts/sidebar.php';
                             </div>
                             <div class="pt-2 border-top d-flex align-items-center justify-content-between">
                                 <span class="fw-bold text-success small">Budget: ₱<?= number_format($course['budget'], 2); ?></span>
-                                <button class="btn btn-sm btn-primary fw-bold btn-register-course" data-id="<?= $course['id']; ?>">Register Now</button>
+                                <?php if (Auth::isSelfService()): ?><button class="btn btn-sm btn-primary fw-bold btn-register-course" data-id="<?= $course['id']; ?>">Register Now</button><?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -76,9 +76,17 @@ require APP_PATH . 'Views/layouts/sidebar.php';
         </div>
 
         <div class="col-lg-4">
-            <div class="glass-card p-4">
-                <h5 class="fw-bold mb-3" style="color: var(--text);"><i class="fa-solid fa-chart-radar me-2" style="color: var(--primary);"></i> Employee Skills Matrix</h5>
-                <canvas id="skillsRadarChart" height="300"></canvas>
+            <div class="glass-card p-4 skills-matrix-card">
+                <div class="skills-matrix-header">
+                    <div class="skills-matrix-heading-icon"><i class="fa-solid fa-chart-radar"></i></div>
+                    <div>
+                        <h5 class="fw-bold mb-1" style="color: var(--text);">Employee Skills Matrix</h5>
+                        <p class="mb-0">Current competency compared with deployment targets</p>
+                    </div>
+                </div>
+                <div class="skills-matrix-chart-shell">
+                    <canvas id="skillsRadarChart" height="300"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -120,7 +128,7 @@ require APP_PATH . 'Views/layouts/sidebar.php';
                         <td><span class="fw-bold text-info"><?= $reg['quiz_score']; ?>%</span></td>
                         <td>
                             <?php if ($reg['status'] === 'Completed'): ?>
-                                <button class="btn btn-sm btn-outline-success" onclick="Swal.fire('PDF Certificate Generated', 'Certificate #CERT-<?= $reg['id']; ?> verified and downloaded.', 'success')"><i class="fa-solid fa-certificate me-1"></i> Download Cert</button>
+                                <a class="btn btn-sm btn-outline-success" href="index.php?page=training_certificate&amp;id=<?= $reg['id']; ?>"><i class="fa-solid fa-certificate me-1"></i> Download Cert</a>
                             <?php else: ?>
                                 <a href="index.php?page=training_quiz&course_id=<?= $reg['course_id']; ?>" class="btn btn-sm btn-warning fw-bold text-white"><i class="fa-solid fa-pen-to-square me-1"></i> Take Quiz</a>
                             <?php endif; ?>

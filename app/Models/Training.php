@@ -49,11 +49,13 @@ class Training extends Model {
         return $this->db->fetchAll("SELECT * FROM quiz_questions WHERE course_id = ?", [$courseId]);
     }
 
-    public function getDashboardStats() {
-        $completed = $this->db->fetchOne("SELECT COUNT(*) as cnt FROM training_registrations WHERE status = 'Completed'")['cnt'] ?? 0;
-        $pending = $this->db->fetchOne("SELECT COUNT(*) as cnt FROM training_registrations WHERE status = 'Pending'")['cnt'] ?? 0;
+    public function getDashboardStats($employeeId = null) {
+        $scope = $employeeId ? " AND employee_id = ?" : "";
+        $params = $employeeId ? [$employeeId] : [];
+        $completed = $this->db->fetchOne("SELECT COUNT(*) as cnt FROM training_registrations WHERE status = 'Completed'" . $scope, $params)['cnt'] ?? 0;
+        $pending = $this->db->fetchOne("SELECT COUNT(*) as cnt FROM training_registrations WHERE status = 'Pending'" . $scope, $params)['cnt'] ?? 0;
         $totalBudget = $this->db->fetchOne("SELECT SUM(budget) as total FROM training_courses WHERE is_active = 1")['total'] ?? 0;
-        $avgScore = $this->db->fetchOne("SELECT AVG(quiz_score) as avg_score FROM training_registrations WHERE quiz_score > 0")['avg_score'] ?? 0;
+        $avgScore = $this->db->fetchOne("SELECT AVG(quiz_score) as avg_score FROM training_registrations WHERE quiz_score > 0" . $scope, $params)['avg_score'] ?? 0;
 
         return [
             'completed' => $completed,
