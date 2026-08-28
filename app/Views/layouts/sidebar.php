@@ -30,7 +30,7 @@ if (!$isEmployee && Auth::hasRole(['Super Admin'])) {
 ?>
 <aside id="sidebar" class="dashboard-sidebar" aria-label="Primary navigation">
  <div>
-  <div class="sidebar-brand"><div class="bi-brand-card sidebar-brand-card"><div class="sidebar-brand-icon"><span class="material-symbols-outlined">groups</span></div><div class="brand-text sidebar-brand-copy"><h6 class="sidebar-brand-title">Core 3</h6><small><?= $isEmployee ? 'Employee Self-Service' : 'Employee Development,<br>Compliance &amp; Benefits'; ?></small></div></div></div>
+  <div class="sidebar-brand"><div class="bi-brand-card sidebar-brand-card"><div class="sidebar-brand-icon"><img src="assets/images/logo-icon.svg" alt="Great Solomon Manpower Services Inc."></div><div class="brand-text sidebar-brand-copy"><h6 class="sidebar-brand-title">Core 3</h6><small><?= $isEmployee ? 'Employee Self-Service' : 'Employee Development,<br>Compliance &amp; Benefits'; ?></small></div></div></div>
   <ul class="nav flex-column sidebar-nav">
    <li class="nav-item"><a class="nav-link sidebar-main-link <?= $currentPage === 'dashboard' ? 'active' : ''; ?>" href="index.php?page=dashboard"><span class="sidebar-main-link-icon material-symbols-outlined">dashboard</span><span class="nav-copy sidebar-label"><strong>Dashboard</strong><small><?= $isEmployee ? 'My Employee Overview' : 'Core 3 Overview &amp; Insights'; ?></small></span></a></li>
    <?php foreach ($items as $item): ?>

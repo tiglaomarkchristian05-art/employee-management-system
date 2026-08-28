@@ -3,7 +3,7 @@ $user = Auth::user();
 ?>
 <nav id="navbar" class="dashboard-topbar">
     <div class="header-leading topbar-start">
-        <a class="navbar-crown topbar-brand" href="index.php?page=dashboard" aria-label="Core 3 dashboard"><span class="material-symbols-outlined">groups</span></a>
+        <a class="navbar-crown topbar-brand" href="index.php?page=dashboard" aria-label="Core 3 dashboard"><img src="assets/images/logo-icon.svg" alt="Great Solomon Manpower Services Inc."></a>
         <span class="header-separator" aria-hidden="true"></span>
         <button class="icon-button" id="sidebar-toggle-btn" type="button" aria-controls="sidebar" aria-expanded="true" aria-label="Toggle sidebar">
             <span class="material-symbols-outlined">menu_open</span>
