@@ -34,13 +34,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .sidebar-brand-copy,.brand-text{min-width:0;display:grid;gap:.2rem;width:100%}
 .sidebar-brand-title,.sidebar-brand-copy h6{margin:0;color:#0f172a;font-size:.88rem;font-weight:700}
 .sidebar-brand-copy small{color:var(--ui-muted);font-size:.72rem;line-height:1.45}
-.sidebar-nav,#sidebar .nav{min-height:0;flex:1;overflow-y:auto;overflow-x:hidden;padding:1rem}
+.sidebar-nav,#sidebar .nav{min-height:0;flex:1;flex-wrap:nowrap!important;overflow-y:auto;overflow-x:hidden;padding:1rem}
 /* Match the BI navigation scrollbar: a visible track and solid gray thumb. */
 #sidebar .sidebar-nav{scrollbar-width:auto;scrollbar-color:#7d7d7d #f1f1f1}
 #sidebar .sidebar-nav::-webkit-scrollbar{width:12px;height:12px}
 #sidebar .sidebar-nav::-webkit-scrollbar-track{background:#f1f1f1}
 #sidebar .sidebar-nav::-webkit-scrollbar-thumb{border:2px solid #f1f1f1;border-radius:8px;background:#7d7d7d;background-clip:padding-box}
 #sidebar .sidebar-nav::-webkit-scrollbar-thumb:hover{background:#666;background-clip:padding-box}
+
 #sidebar .nav-item{width:100%}
 #sidebar .sidebar-main-link{position:relative;display:flex;align-items:center;gap:.85rem;width:100%;min-height:3.25rem;margin:0;padding:.75rem 1rem;border:1px solid rgba(148,163,184,.14);border-radius:1.75rem;background:transparent;color:#334155;text-decoration:none;font-weight:600;font-size:.92rem}
 #sidebar .sidebar-main-link:hover{background:#f8fafc;color:var(--ui-primary)}
