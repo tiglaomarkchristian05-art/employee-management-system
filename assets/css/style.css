@@ -79,11 +79,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 /* BI page canvas and section hierarchy, applied to all CT3 routes. */
 #main-content>:not(#navbar):not(.modal):not(script){width:min(100%,88rem);margin-left:auto;margin-right:auto}
-#main-content>.d-flex.align-items-center.justify-content-between.my-3,#main-content>.my-3{padding:1rem 1.35rem!important;border:1px solid var(--ui-border);border-radius:var(--ui-radius-lg);background:rgba(255,255,255,.94);box-shadow:0 6px 20px rgba(15,23,42,.08)}
-#main-content>.d-flex.align-items-center.justify-content-between.my-3 h4,#main-content>.my-3 h4{margin:0 0 .25rem!important;font-size:1.15rem}
-#main-content>.d-flex.align-items-center.justify-content-between.my-3 p,#main-content>.my-3 p{font-size:.75rem}
+#main-content>.d-flex.align-items-center.justify-content-between.my-3,#main-content>.my-3{min-height:4.5rem;padding:.85rem 1.25rem!important;border:1px solid var(--ui-border);border-radius:var(--ui-radius-lg);background:#fff;box-shadow:0 6px 20px rgba(15,23,42,.055)}
+#main-content>.my-3:not(.d-flex){display:flex;align-items:center;flex-wrap:wrap;gap:.45rem 1rem}
+#main-content>.my-3:not(.d-flex)>a{flex:none;margin:0!important}
+#main-content>.d-flex.align-items-center.justify-content-between.my-3 h4,#main-content>.my-3 h4{width:max-content;max-width:100%;display:inline-flex;align-items:center;gap:.15rem;min-height:2.45rem;margin:0!important;padding:.5rem .9rem;border:1px solid #c7d2fe;border-radius:.75rem;background:var(--ui-primary-soft);color:var(--ui-primary-dark)!important;font-family:var(--font-label);font-size:.82rem;font-weight:700;letter-spacing:0;box-shadow:0 3px 10px rgba(79,70,229,.06)}
+#main-content>.d-flex.align-items-center.justify-content-between.my-3 h4 i,#main-content>.my-3 h4 i{color:var(--ui-primary)!important;font-size:.85rem}
+#main-content>.d-flex.align-items-center.justify-content-between.my-3 p,#main-content>.my-3 p{margin:.35rem 0 0!important;color:var(--ui-muted)!important;font-size:.69rem;line-height:1.35}
+#main-content>.my-3:not(.d-flex)>p{flex-basis:100%;margin-top:0!important}
+#main-content>.d-flex.align-items-center.justify-content-between.my-3>div:last-child:not(:first-child){display:flex;align-items:center;justify-content:flex-end;gap:.5rem;flex-wrap:wrap}
 .dashboard-toolbar{padding:1rem 1.35rem;border:1px solid var(--ui-border)!important;border-radius:var(--ui-radius-lg)!important;background:rgba(255,255,255,.94);box-shadow:0 6px 20px rgba(15,23,42,.08)!important}
 .dashboard-tab{display:inline-flex;align-items:center;gap:.5rem;padding:.48rem .95rem;border:1px solid #c7d2fe;border-radius:.75rem;background:var(--ui-primary-soft);color:var(--ui-primary-dark);font-family:var(--font-label);font-size:.84rem;font-weight:700}
+.dashboard-toolbar .section-heading.mb-0{width:max-content;max-width:100%;display:inline-flex;align-items:center;min-height:2.45rem;margin:0!important;padding:.5rem .9rem;border:1px solid #c7d2fe;border-radius:.75rem;background:var(--ui-primary-soft);color:var(--ui-primary-dark);font-family:var(--font-label);font-size:.82rem;font-weight:700;box-shadow:0 3px 10px rgba(79,70,229,.06)}
+.dashboard-toolbar .section-kicker+.section-heading.mb-0{margin-top:.2rem!important}.dashboard-toolbar .section-heading.mb-0+small{display:block;margin-top:.3rem;font-size:.69rem}
 .reporting-scope{display:flex;align-items:center;gap:.8rem;min-height:5rem;padding:1rem;border:1px solid var(--ui-border);border-radius:var(--ui-radius);background:#fff;box-shadow:0 7px 20px rgba(15,23,42,.045)}
 .scope-icon{display:grid;place-items:center;width:2.45rem;height:2.45rem;flex:none;border-radius:.75rem;color:var(--ui-primary);background:var(--ui-primary-soft)}
 .reporting-scope span,.reporting-scope strong,.reporting-scope small{display:block}.reporting-scope span,.section-kicker,.section-eyebrow{color:var(--ui-primary);font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.reporting-scope strong{margin:.12rem 0;font-size:.8rem}.reporting-scope small{color:var(--ui-muted);font-size:.68rem}
