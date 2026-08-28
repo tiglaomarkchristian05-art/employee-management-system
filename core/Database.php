@@ -15,7 +15,9 @@ class Database {
         try {
             $this->pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
-            die("Database Connection Error: " . $e->getMessage());
+            error_log('Database connection failed: ' . $e->getMessage());
+            http_response_code(500);
+            die(defined('APP_DEBUG') && APP_DEBUG ? "Database Connection Error: " . $e->getMessage() : 'The application database is temporarily unavailable.');
         }
     }
 

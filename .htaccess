@@ -7,14 +7,14 @@ Options -Indexes
     RewriteEngine On
 
     # Never expose application internals or private runtime data directly.
-    RewriteRule ^(?:app|config|core|database)(?:/|$) - [F,L,NC]
+    RewriteRule ^(?:app|config|core|database|scripts)(?:/|$) - [F,L,NC]
     RewriteRule ^(?:backups?|documents?)(?:/|$) - [F,L,NC]
     RewriteRule ^public/uploads(?:/|$) - [F,L,NC]
 
     # Block hidden files (except ACME's .well-known directory) and sensitive
     # development/database artifacts if they are ever placed in the web root.
     RewriteRule "(^|/)\.(?!well-known(?:/|$))" - [F,L]
-    RewriteRule "(?:^|/)(?:composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml(?:\.dist)?|README(?:\.[A-Za-z0-9]+)?|.*\.(?:sql|bak|backup|dump|env|ini|log|pem|key|p12|pfx))$" - [F,L,NC]
+    RewriteRule "(?:^|/)(?:Dockerfile|composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml(?:\.dist)?|README(?:\.[A-Za-z0-9]+)?|.*\.(?:sql|bak|backup|dump|env|ini|log|pem|key|p12|pfx))$" - [F,L,NC]
 
     # Keep real files/directories (CSS, JS, images, index.php) working normally.
     RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -39,4 +39,3 @@ Options -Indexes
 <FilesMatch "^(?:\.env(?:\..*)?|\.gitignore|\.htaccess)$">
     Require all denied
 </FilesMatch>
-

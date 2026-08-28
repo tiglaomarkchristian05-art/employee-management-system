@@ -3,6 +3,11 @@
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/database.php';
 
+if (APP_ENV === 'production' && !filter_var(env_value('ALLOW_INSTALL', '0'), FILTER_VALIDATE_BOOLEAN)) {
+    http_response_code(404);
+    exit('Not found.');
+}
+
 $message = '';
 $status = '';
 
