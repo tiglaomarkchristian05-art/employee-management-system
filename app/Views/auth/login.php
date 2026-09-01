@@ -28,7 +28,7 @@
     <div class="auth-input"><span class="material-symbols-outlined">mail</span><input type="text" id="username" name="username" placeholder="admin@ismers.local" autocomplete="username" required value="admin@ismers.local"></div>
     <label for="password">Password</label>
     <div class="auth-input"><span class="material-symbols-outlined">lock</span><input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required><button type="button" id="toggleEye" aria-label="Show password"><span class="material-symbols-outlined" id="eyeIcon">visibility</span></button></div>
-    <div class="auth-options"><label class="remember"><input type="checkbox" name="remember"><span>Remember me</span></label><a href="javascript:void(0)" class="auth-link" onclick="Swal.fire('Password Reset','Please contact the System Administrator to reset your password.','info')">Forgot password?</a></div>
+    <div class="auth-options"><label class="remember"><input type="checkbox" name="remember"><span>Remember me</span></label><a href="javascript:void(0)" class="auth-link" onclick="showLoginInfo()">Forgot password?</a></div>
     <button type="submit" class="auth-submit" id="btnLogin"><span id="btnText">Sign In</span><i class="fa-solid fa-right-to-bracket" id="btnIcon" hidden></i></button>
    </form>
    <footer class="auth-footer">

@@ -2,6 +2,28 @@
  * Moses Group of Company - Recruitment Management System Login Script
  */
 
+window.showLoginInfo = function () {
+    return Swal.fire({
+        icon: 'info',
+        iconHtml: '<i class="fa-solid fa-key" aria-hidden="true"></i>',
+        title: 'Password Reset',
+        text: 'Please contact the System Administrator to reset your password.',
+        showCloseButton: true,
+        buttonsStyling: false,
+        confirmButtonText: 'Understood',
+        showClass: { popup: 'login-dialog-in' },
+        hideClass: { popup: 'login-dialog-out' },
+        customClass: {
+            popup: 'login-success-modal',
+            icon: 'login-success-icon',
+            title: 'login-success-title',
+            htmlContainer: 'login-success-message',
+            confirmButton: 'login-dialog-confirm',
+            closeButton: 'login-dialog-close'
+        }
+    });
+};
+
 document.addEventListener('DOMContentLoaded', function () {
     const toggleEyeBtn = document.getElementById('toggleEye');
     const passwordInput = document.getElementById('password');
@@ -38,9 +60,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     position: 'top-end',
                     showConfirmButton: false,
                     timer: 1600,
-                    timerProgressBar: true
+                    timerProgressBar: false,
+                    showClass: { popup: 'login-dialog-in' },
+                    hideClass: { popup: 'login-dialog-out' },
+                    customClass: { popup: 'login-credential-toast', icon: 'login-credential-toast-icon', title: 'login-credential-toast-title' }
                 }).fire({
                     icon: 'info',
+                    iconHtml: '<i class="fa-solid fa-user-check" aria-hidden="true"></i>',
                     title: `${role} credentials loaded`
                 });
             }
@@ -80,6 +106,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                 timer: 1200,
                                 showConfirmButton: false,
                                 allowOutsideClick: false,
+                                showClass: { popup: 'login-dialog-in' },
+                                hideClass: { popup: 'login-dialog-out' },
                                 customClass: {
                                     popup: 'login-success-modal',
                                     icon: 'login-success-icon',
