@@ -56,6 +56,7 @@ if($isEmployee){$items=[
  $link('notifications','notifications','fa-bell','Notifications','System workflow updates',['notifications'],true),
  $link('audit_trail','admin_logs','fa-receipt','Audit Trail','Security and activity history',['admin_logs'],true),
  ...($isSuperAdmin?[
+ $link('user_accounts','admin_users','fa-users-gear','User Accounts','Manage access, roles and passwords',['admin_users'],true),
  $link('system_settings','admin_settings','fa-gears','System Settings','Organization and application configuration',['admin_settings'],true),
  $link('database_backup','admin_backup','fa-database','Database Backup','Export and protected recovery tools',['admin_backup'],true),
  ]:[]),
