@@ -8,3 +8,12 @@
 .auth-brand-mark img{width:4rem;height:4rem;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(79,70,229,.12));transition:transform .18s ease}
 .auth-brand-mark img:hover{transform:scale(1.05)}
 .auth-input button .material-symbols-outlined{font-size:1.3rem}
+
+/* Login success dialog follows the approved ISMERS confirmation-modal language. */
+.swal2-popup.login-success-modal{width:min(23.5rem,calc(100vw - 2rem))!important;padding:2.25rem 1.75rem 1.9rem!important;border:1px solid #e2e8f0!important;border-radius:1.5rem!important;background:#fff!important;box-shadow:0 22px 60px rgba(15,23,42,.24)!important}
+.login-success-modal .login-success-icon{display:grid!important;place-items:center!important;width:4.25rem!important;height:4.25rem!important;margin:0 auto 1.25rem!important;border:0!important;border-radius:50%!important;background:#ece8ff!important;color:#4f46e5!important;font-size:2rem!important;line-height:1!important}
+.login-success-modal .login-success-icon .swal2-success-ring,.login-success-modal .login-success-icon [class^=swal2-success-line]{display:none!important}
+.login-success-modal .login-success-icon .swal2-icon-content{display:grid!important;place-items:center!important;width:100%!important;height:100%!important;font-size:1rem!important;line-height:1!important}
+.login-success-modal .login-success-icon .swal2-icon-content i{display:block!important;margin:0!important;font-size:2rem!important;line-height:1!important;transform:none!important}
+.login-success-modal .login-success-title{padding:0!important;color:#20212b!important;font-size:1.35rem!important;font-weight:700!important;line-height:1.25!important}
+.login-success-modal .login-success-message{margin:.5rem 0 0!important;padding:0!important;color:#64748b!important;font-family:var(--font-label)!important;font-size:.88rem!important;line-height:1.55!important}

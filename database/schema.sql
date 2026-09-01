@@ -346,9 +346,15 @@ CREATE TABLE IF NOT EXISTS `final_pays` (
 CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NULL,
+  `role_name` VARCHAR(100) NULL,
+  `employee_id` INT NULL,
   `action` VARCHAR(100) NOT NULL,
   `module` VARCHAR(100) NOT NULL,
+  `record_type` VARCHAR(100) NULL,
+  `record_id` INT NULL,
   `description` TEXT NULL,
+  `old_value` LONGTEXT NULL,
+  `new_value` LONGTEXT NULL,
   `ip_address` VARCHAR(45) NULL,
   `user_agent` VARCHAR(255) NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP

@@ -1,28 +1,15 @@
 <?php
-
-require_once ROOT_PATH . 'core/Model.php';
-
+require_once ROOT_PATH.'core/Model.php';
 class Benefit extends Model {
-    protected $table = 'benefit_plans';
-
-    public function getClaimsWithDetails($employeeId = null) {
-        $sql = "SELECT c.*, b.name as benefit_name, b.type as benefit_type, e.first_name, e.last_name, e.employee_code
-                FROM benefit_claims c
-                JOIN benefit_plans b ON c.benefit_id = b.id
-                JOIN employees e ON c.employee_id = e.id";
-        if ($employeeId) {
-            $sql .= " WHERE c.employee_id = ? ORDER BY c.id DESC";
-            return $this->db->fetchAll($sql, [$employeeId]);
-        }
-        $sql .= " ORDER BY c.id DESC";
-        return $this->db->fetchAll($sql);
-    }
-
-    public function getEmployeeEnrollments($employeeId) {
-        $sql = "SELECT eb.*, b.name as benefit_name, b.type, b.coverage_amount, b.monthly_cost
-                FROM employee_benefits eb
-                JOIN benefit_plans b ON eb.benefit_id = b.id
-                WHERE eb.employee_id = ?";
-        return $this->db->fetchAll($sql, [$employeeId]);
-    }
+ protected $table='benefit_plans';
+ const ACTIVE_STATUSES=['Submitted','Under Review','Returned','Approved','Processing','Released'];
+ const STATUSES=['Submitted','Under Review','Returned','Approved','Rejected','Processing','Released','Completed','Cancelled'];
+ public function getPlans($activeOnly=false){return $this->db->fetchAll("SELECT * FROM benefit_plans".($activeOnly?" WHERE is_active=1 AND (application_start IS NULL OR application_start<=CURRENT_DATE) AND (application_end IS NULL OR application_end>=CURRENT_DATE)":'')." ORDER BY name");}
+ public function getPlan($id){return $this->db->fetchOne("SELECT * FROM benefit_plans WHERE id=?",[$id]);}
+ public function getClaimsWithDetails($employeeId=null){$sql="SELECT c.*,b.name benefit_name,b.type benefit_type,b.required_documents,b.max_amount,e.first_name,e.last_name,e.employee_code,d.name department_name FROM benefit_claims c JOIN benefit_plans b ON b.id=c.benefit_id JOIN employees e ON e.id=c.employee_id LEFT JOIN departments d ON d.id=e.department_id";$p=[];if($employeeId){$sql.=" WHERE c.employee_id=?";$p[]=$employeeId;}return $this->db->fetchAll($sql." ORDER BY c.id DESC",$p);}
+ public function getClaim($id){return $this->db->fetchOne("SELECT c.*,b.name benefit_name,b.max_amount,e.first_name,e.last_name FROM benefit_claims c JOIN benefit_plans b ON b.id=c.benefit_id JOIN employees e ON e.id=c.employee_id WHERE c.id=?",[$id]);}
+ public function eligibility($benefitId,$employeeId){$b=$this->getPlan($benefitId);$e=$this->db->fetchOne("SELECT * FROM employees WHERE id=?",[$employeeId]);if(!$b||!$e)return [false,'Benefit or employee was not found.'];if(!$b['is_active'])return [false,'This benefit is inactive.'];$today=date('Y-m-d');if($b['application_start']&&$today<$b['application_start'])return [false,'The application period has not started.'];if($b['application_end']&&$today>$b['application_end'])return [false,'The application period has ended.'];$statuses=array_filter(array_map('trim',explode(',',$b['eligible_employment_statuses'])));if($statuses&&!in_array($e['status'],$statuses,true))return [false,'Your employment status is not eligible.'];$months=((int)date('Y')-(int)date('Y',strtotime($e['hire_date'])))*12+(int)date('n')-(int)date('n',strtotime($e['hire_date']));if($months<(int)$b['minimum_tenure_months'])return [false,'Minimum tenure requirement is not met.'];$deps=array_filter(array_map('intval',explode(',',(string)$b['eligible_department_ids'])));if($deps&&!in_array((int)$e['department_id'],$deps,true))return [false,'Your department is not eligible.'];return [true,'Eligible'];}
+ public function apply($benefitId,$employeeId,array $data){[$ok,$reason]=$this->eligibility($benefitId,$employeeId);if(!$ok)throw new RuntimeException($reason);$pdo=$this->db->getConnection();$pdo->beginTransaction();try{$b=$this->db->fetchOne("SELECT * FROM benefit_plans WHERE id=? FOR UPDATE",[$benefitId]);$active=$this->db->fetchOne("SELECT id FROM benefit_claims WHERE employee_id=? AND benefit_id=? AND status IN ('Submitted','Under Review','Returned','Approved','Processing','Released') FOR UPDATE",[$employeeId,$benefitId]);if($active)throw new RuntimeException('You already have an active application for this benefit.');if($b['max_amount']!==null&&(float)$data['amount']>(float)$b['max_amount'])throw new RuntimeException('Requested amount exceeds the benefit maximum.');$data['employee_id']=$employeeId;$data['benefit_id']=$benefitId;$data['status']='Submitted';$id=$this->db->insert('benefit_claims',$data);$pdo->commit();return $id;}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}}
+ public function resubmit($id,$employeeId,array $data){$c=$this->getClaim($id);if(!$c||$c['employee_id']!=$employeeId||$c['status']!=='Returned')throw new RuntimeException('Returned application not found.');if($c['max_amount']!==null&&(float)$data['amount']>(float)$c['max_amount'])throw new RuntimeException('Requested amount exceeds the benefit maximum.');$data['status']='Submitted';$data['admin_remarks']=null;$this->db->update('benefit_claims',$data,"id=?",[$id]);return $c;}
+ public function getEmployeeEnrollments($employeeId){return $this->db->fetchAll("SELECT eb.*,b.name benefit_name,b.type,b.coverage_amount,b.monthly_cost FROM employee_benefits eb JOIN benefit_plans b ON b.id=eb.benefit_id WHERE eb.employee_id=?",[$employeeId]);}
 }

@@ -1,32 +1,17 @@
 <?php
-
-require_once ROOT_PATH . 'core/Model.php';
-
+require_once ROOT_PATH.'core/Model.php';
 class Separation extends Model {
-    protected $table = 'separations';
-
-    public function getSeparationsWithDetails($employeeId = null) {
-        $sql = "SELECT s.*, e.first_name, e.last_name, e.employee_code, e.hire_date, d.name as department_name, p.title as position_title
-                FROM separations s
-                JOIN employees e ON s.employee_id = e.id
-                LEFT JOIN departments d ON e.department_id = d.id
-                LEFT JOIN positions p ON e.position_id = p.id
-                ";
-        $params = [];
-        if ($employeeId) { $sql .= " WHERE s.employee_id = ?"; $params[] = $employeeId; }
-        $sql .= " ORDER BY s.id DESC";
-        return $this->db->fetchAll($sql, $params);
-    }
-
-    public function getClearanceStatus($separationId) {
-        return $this->db->fetchAll("SELECT * FROM clearances WHERE separation_id = ?", [$separationId]);
-    }
-
-    public function getAssetReturns($separationId) {
-        return $this->db->fetchAll("SELECT * FROM asset_returns WHERE separation_id = ?", [$separationId]);
-    }
-
-    public function getFinalPay($separationId) {
-        return $this->db->fetchOne("SELECT * FROM final_pays WHERE separation_id = ?", [$separationId]);
-    }
+ protected $table='separations';
+ const ACTIVE=['Submitted','Under Review','Approved','Processing','Clearance Ongoing'];
+ public function getSeparationsWithDetails($employeeId=null){$sql="SELECT s.*,e.first_name,e.last_name,e.employee_code,e.hire_date,e.basic_salary,d.name department_name,p.title position_title,(SELECT COUNT(*) FROM clearances c WHERE c.separation_id=s.id) clearance_total,(SELECT COUNT(*) FROM clearances c WHERE c.separation_id=s.id AND c.status='Cleared') clearance_cleared FROM separations s JOIN employees e ON e.id=s.employee_id LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN positions p ON p.id=e.position_id";$params=[];if($employeeId){$sql.=' WHERE s.employee_id=?';$params[]=(int)$employeeId;}return $this->db->fetchAll($sql.' ORDER BY s.id DESC',$params);}
+ public function details($id,$employeeId=null){$sql="SELECT s.*,e.first_name,e.last_name,e.employee_code,e.hire_date,e.basic_salary,d.name department_name,p.title position_title FROM separations s JOIN employees e ON e.id=s.employee_id LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN positions p ON p.id=e.position_id WHERE s.id=?";$p=[(int)$id];if($employeeId){$sql.=' AND s.employee_id=?';$p[]=(int)$employeeId;}return $this->db->fetchOne($sql,$p);}
+ public function submitRequest($employeeId,$type,$reason,$remarks,$date,$file,$original){$pdo=$this->db->getConnection();$pdo->beginTransaction();try{$active=$this->db->fetchOne("SELECT id FROM separations WHERE employee_id=? AND status IN ('Submitted','Under Review','Approved','Processing','Clearance Ongoing') FOR UPDATE",[$employeeId]);if($active)throw new RuntimeException('You already have an active separation request.');$id=$this->create(['employee_id'=>$employeeId,'separation_type'=>$type,'notice_date'=>date('Y-m-d'),'proposed_last_working_date'=>$date,'effective_date'=>$date,'reason'=>$reason,'resignation_file'=>$file,'resignation_original_name'=>$original,'employee_remarks'=>$remarks?:null,'status'=>'Submitted']);$pdo->commit();return $id;}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}}
+ public function createClearance($id){$sep=$this->details($id);if(!$sep||!in_array($sep['status'],['Approved','Processing'],true))throw new RuntimeException('Separation must be approved before clearance is generated.');$departments=$this->db->fetchAll('SELECT id,name FROM departments ORDER BY name');if(!$departments)throw new RuntimeException('No configured departments are available.');$pdo=$this->db->getConnection();$pdo->beginTransaction();try{foreach($departments as $d)$this->db->query("INSERT IGNORE INTO clearances(separation_id,department_id,department_name,is_mandatory,status) VALUES(?,?,?,?, 'Pending')",[$id,$d['id'],$d['name'],1]);$this->update($id,['status'=>'Clearance Ongoing','clearance_created_at'=>date('Y-m-d H:i:s')]);$pdo->commit();return count($departments);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}}
+ public function getClearanceStatus($id){return $this->db->fetchAll('SELECT * FROM clearances WHERE separation_id=? ORDER BY id',[(int)$id]);}
+ public function getClearance($id){return $this->db->fetchOne('SELECT c.*,s.employee_id,s.status separation_status FROM clearances c JOIN separations s ON s.id=c.separation_id WHERE c.id=?',[(int)$id]);}
+ public function getAssetReturns($id){return $this->db->fetchAll('SELECT * FROM asset_returns WHERE separation_id=? ORDER BY id',[(int)$id]);}
+ public function getFinalPay($id){return $this->db->fetchOne('SELECT * FROM final_pays WHERE separation_id=?',[(int)$id]);}
+ public function getExitInterview($id){return $this->db->fetchOne('SELECT * FROM exit_interviews WHERE separation_id=?',[(int)$id]);}
+ public function blockers($id){$row=$this->db->fetchOne("SELECT COUNT(*) total FROM clearances WHERE separation_id=? AND is_mandatory=1 AND status<>'Cleared'",[(int)$id]);return (int)($row['total']??0);}
+ public function complete($id,$userId){$sep=$this->details($id);if(!$sep||$sep['status']!=='Clearance Ongoing')throw new RuntimeException('Clearance is not ready for final completion.');if($this->blockers($id)>0)throw new RuntimeException('All mandatory clearance items must be Cleared first.');$this->update($id,['status'=>'Completed','completed_at'=>date('Y-m-d H:i:s'),'reviewed_by'=>$userId]);return $sep;}
 }

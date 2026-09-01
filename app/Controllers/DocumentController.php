@@ -3,21 +3,32 @@
 require_once ROOT_PATH . 'core/Controller.php';
 require_once APP_PATH . 'Models/Document.php';
 require_once APP_PATH . 'Models/Employee.php';
+require_once APP_PATH . 'Models/Notification.php';
 
 class DocumentController extends Controller {
+    private $documentModel;
+    private $notifications;
+
+    public function __construct() {
+        $this->documentModel = new Document();
+        $this->notifications = new Notification();
+    }
+
     public function index() {
         Auth::requireAuth();
-
-        $documentModel = new Document();
+        $this->documentModel->refreshExpiryStatuses();
+        $this->sendExpiryNotifications();
         $employeeModel = new Employee();
         $user = Auth::user();
-        $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
+        $isHRAdmin = Auth::isAdmin();
         $empId = $isHRAdmin ? null : $user['employee_id'];
 
         $data = [
-            'documents'          => $documentModel->getDocumentsWithDetails($empId),
-            'expiring_contracts' => $documentModel->getExpiringContracts(60, $empId),
-            'categories'         => $documentModel->db->fetchAll("SELECT * FROM document_categories"),
+            'is_admin'           => $isHRAdmin,
+            'documents'          => $this->documentModel->getDocumentsWithDetails($empId),
+            'requirements'       => $this->documentModel->getRequirements($empId),
+            'expiring_contracts' => $this->documentModel->getExpiringContracts(60, $empId),
+            'categories'         => $this->documentModel->db->fetchAll("SELECT * FROM document_categories WHERE is_active=1 ORDER BY name"),
             'employees'          => $isHRAdmin ? $employeeModel->getAllWithDetails() : []
         ];
 
@@ -26,12 +37,15 @@ class DocumentController extends Controller {
 
     public function contracts() {
         Auth::requireAuth();
-        $documentModel = new Document();
+        $this->documentModel->refreshExpiryStatuses();
+        $this->sendExpiryNotifications();
         $user = Auth::user();
-        $empId = Auth::hasRole(['Super Admin', 'HR Manager']) ? null : $user['employee_id'];
+        $isHRAdmin=Auth::isAdmin();$empId = $isHRAdmin ? null : $user['employee_id'];
 
         $data = [
-            'contracts' => $documentModel->getContractsWithDetails($empId)
+            'is_admin'=>$isHRAdmin,
+            'contracts' => $this->documentModel->getContractsWithDetails($empId),
+            'employees'=>$isHRAdmin?(new Employee())->getAllWithDetails():[]
         ];
 
         $this->view('documents/contracts', $data);
@@ -40,60 +54,25 @@ class DocumentController extends Controller {
     public function upload() {
         Auth::requireAuth();
         Auth::requireMethod('POST');
-        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
-            $this->json('error', 'Invalid CSRF token.');
-        }
+        $this->csrf();
 
         $user = Auth::user();
-        $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
+        $isHRAdmin = Auth::isAdmin();
         $empId = $isHRAdmin ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
-        if ($empId <= 0) $this->json('error', 'A valid employee is required.');
-
-        $title = sanitize_input($_POST['title'] ?? '');
-        $categoryId = intval($_POST['category_id'] ?? 1);
-        $docNum = sanitize_input($_POST['document_number'] ?? 'DOC-' . rand(1000,9999));
-        $expiry = !empty($_POST['expiry_date']) ? $_POST['expiry_date'] : null;
-
-        // Secure File Upload handling
-        $fileName = 'doc_upload_' . time() . '.pdf';
-        $fileSize = '1.2 MB';
-
-        if (isset($_FILES['document_file']) && $_FILES['document_file']['error'] === UPLOAD_ERR_OK) {
-            $tmpPath = $_FILES['document_file']['tmp_name'];
-            $origName = $_FILES['document_file']['name'];
-            $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
-            $bytes = $_FILES['document_file']['size'];
-
-            if ($bytes > 0) {
-                $fileSize = round($bytes / 1024 / 1024, 2) . ' MB';
-            }
-
-            $uploadDir = ROOT_PATH . 'public/uploads/documents/';
-            if (!is_dir($uploadDir)) {
-                @mkdir($uploadDir, 0777, true);
-            }
-
-            $fileName = 'doc_' . time() . '_' . rand(100, 999) . '.' . $ext;
-            @move_uploaded_file($tmpPath, $uploadDir . $fileName);
-        }
-
-        $qrStamp = 'QR-EMP' . $empId . '-' . strtoupper(substr(md5(time() . rand(1000, 9999)), 0, 8));
-
-        $documentModel = new Document();
-        $docId = $documentModel->create([
-            'employee_id'     => $empId,
-            'category_id'     => $categoryId,
-            'title'           => $title,
-            'document_number' => $docNum,
-            'file_path'       => 'uploads/documents/' . $fileName,
-            'file_size'       => $fileSize,
-            'expiry_date'     => $expiry,
-            'qr_code'         => $qrStamp,
-            'status'          => $isHRAdmin ? 'Verified' : 'Pending'
-        ]);
-
-        AuditLogger::log('UPLOAD_DOCUMENT', 'Document Management', "Uploaded document: {$title} (ID: {$docId})");
-        $this->json('success', 'Document uploaded and QR security stamp generated successfully!', ['id' => $docId]);
+        $requirementId=(int)($_POST['requirement_id']??0);$requirement=$requirementId?$this->documentModel->getRequirement($requirementId):null;
+        if($requirement){if(!$isHRAdmin)Auth::requireOwnership($requirement['employee_id']);$empId=(int)$requirement['employee_id'];}
+        $categoryId=$requirement?(int)$requirement['category_id']:(int)($_POST['category_id']??0);
+        $category=$this->documentModel->db->fetchOne("SELECT * FROM document_categories WHERE id=? AND is_active=1",[$categoryId]);
+        $title=sanitize_input($_POST['title']??($requirement['title']??''));
+        if($empId<1||!$category||$title==='')$this->json('error','Employee, document type, and title are required.',[],422);
+        try {
+            $file=$this->saveUpload('document_file','documents',explode(',',$category['allowed_extensions']),(int)$category['max_size_mb']*1048576);
+            $docId=$this->documentModel->submit(['employee_id'=>$empId,'category_id'=>$categoryId,'title'=>$title,'document_number'=>sanitize_input($_POST['document_number']??''),'file_path'=>$file['path'],'file_size'=>$file['size'],'issue_date'=>$this->dateOrNull($_POST['issue_date']??''),'expiry_date'=>$this->dateOrNull($_POST['expiry_date']??''),'qr_code'=>'QR-EMP'.$empId.'-'.strtoupper(bin2hex(random_bytes(4))),'status'=>$isHRAdmin?'Approved':'Submitted','remarks'=>$isHRAdmin?'Uploaded by authorized Admin/HR.':null,'original_name'=>$file['original'],'mime_type'=>$file['mime'],'submitted_by'=>$user['id']],$requirementId?:null);
+            if($isHRAdmin&&$requirementId)$this->documentModel->db->update('document_requirements',['status'=>'Approved'],"id=?",[$requirementId]);
+            if(!$isHRAdmin)$this->notifications->createForAdmins('New document submission','Employee ID '.$empId.' submitted '.$title.' for review.','info','index.php?page=documents','documents',$docId);
+            AuditLogger::log('UPLOAD_DOCUMENT','Document Management',"Uploaded {$title} (ID: {$docId})");
+            $this->json('success',$isHRAdmin?'Authorized document uploaded and approved.':'Document submitted for review.',['id'=>(int)$docId]);
+        } catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}
     }
 
     public function delete() {
@@ -108,15 +87,14 @@ class DocumentController extends Controller {
             $this->json('error', 'Invalid document ID.');
         }
 
-        $documentModel = new Document();
-        $doc = $documentModel->find($id);
+        $doc = $this->documentModel->getDocument($id);
         if (!$doc) {
             $this->json('error', 'Document not found.');
         }
 
-        $documentModel->delete($id);
-        AuditLogger::log('DELETE_DOCUMENT', 'Document Management', "Deleted document: {$doc['title']} (ID: {$id})");
-        $this->json('success', 'Document deleted successfully.');
+        $this->documentModel->review($id, 'Rejected', 'Archived by Admin/HR through the legacy document action.', Auth::user()['id']);
+        AuditLogger::log('ARCHIVE_DOCUMENT', 'Document Management', "Archived document: {$doc['title']} (ID: {$id})");
+        $this->json('success', 'Document archived without deleting its history.');
     }
 
     public function download() {
@@ -162,4 +140,40 @@ class DocumentController extends Controller {
         readfile($resolvedPath);
         exit;
     }
+
+    public function storeType() {
+        $this->adminPost();$name=sanitize_input($_POST['name']??'');
+        if($name===''||strlen($name)>100)$this->json('error','A valid document type name is required.',[],422);
+        $existing=$this->documentModel->db->fetchOne('SELECT id,name FROM document_categories WHERE LOWER(name)=LOWER(?) LIMIT 1',[$name]);
+        if($existing)$this->json('success','This document type already exists. Continue by assigning it to an employee.',['id'=>(int)$existing['id'],'existing'=>true]);
+        try{$id=$this->documentModel->db->insert('document_categories',['name'=>$name,'description'=>trim($_POST['description']??''),'is_required'=>!empty($_POST['is_required'])?1:0,'instructions'=>trim($_POST['instructions']??''),'allowed_extensions'=>$this->extensions($_POST['allowed_extensions']??'pdf,jpg,jpeg,png'),'max_size_mb'=>max(1,min(20,(int)($_POST['max_size_mb']??5))),'is_active'=>1]);AuditLogger::log('CREATE_DOCUMENT_TYPE','Document Management',"Created document type {$name} (ID: {$id})");$this->json('success','Document type created. Continue by assigning it to an employee.',['id'=>(int)$id,'existing'=>false]);}catch(Throwable $e){$this->json('error','Unable to create the document type. Please try again.',[],422);}
+    }
+    public function assignRequirement() {
+        $this->adminPost();$employee=(int)($_POST['employee_id']??0);$category=(int)($_POST['category_id']??0);$title=sanitize_input($_POST['title']??'');
+        if(!$this->exists('employees',$employee)||!$this->exists('document_categories',$category)||$title==='')$this->json('error','Employee, document type, and title are required.',[],422);
+        $id=$this->documentModel->assignRequirement(['employee_id'=>$employee,'category_id'=>$category,'title'=>$title,'instructions'=>trim($_POST['instructions']??''),'due_date'=>$this->dateOrNull($_POST['due_date']??''),'status'=>'Pending','assigned_by'=>Auth::user()['id']]);
+        $this->notifications->createForEmployee($employee,'Document required',"Please submit {$title}.",'warning','index.php?page=documents','documents',$id);AuditLogger::log('ASSIGN_DOCUMENT_REQUIREMENT','Document Management',"Assigned {$title} to employee ID {$employee}");$this->json('success','Document requirement assigned.',['id'=>(int)$id]);
+    }
+    public function review() {
+        $this->adminPost();$id=(int)($_POST['id']??0);$status=sanitize_input($_POST['status']??'');$remarks=trim($_POST['remarks']??'');
+        if(!in_array($status,['Under Review','Approved','Returned','Rejected'],true))$this->json('error','Invalid review decision.',[],422);
+        if(in_array($status,['Returned','Rejected'],true)&&$remarks==='')$this->json('error','Remarks are required when returning or rejecting a document.',[],422);
+        try{$doc=$this->documentModel->review($id,$status,$remarks,Auth::user()['id']);$tone=$status==='Approved'?'success':($status==='Returned'?'warning':'error');$this->notifications->createForEmployee($doc['employee_id'],'Document '.strtolower($status),"{$doc['title']} was {$status}.".($remarks?" Remarks: {$remarks}":''),$tone,'index.php?page=documents','documents',$id);AuditLogger::log('DOCUMENT_'.strtoupper(str_replace(' ','_',$status)),'Document Management',"Document ID {$id} set to {$status}",null,['record_type'=>'document','record_id'=>$id,'old_value'=>['status'=>$doc['status']],'new_value'=>['status'=>$status,'remarks'=>$remarks]]);$this->json('success',"Document marked {$status}.");}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}
+    }
+    public function acknowledge() {$this->employeePost();$id=(int)($_POST['requirement_id']??0);$r=$this->documentModel->getRequirement($id);if(!$r)$this->json('error','Requirement not found.',[],404);Auth::requireOwnership($r['employee_id']);$this->documentModel->db->update('document_requirements',['acknowledged_at'=>date('Y-m-d H:i:s')],"id=?",[$id]);AuditLogger::log('ACKNOWLEDGE_DOCUMENT_REQUIREMENT','Document Management',"Acknowledged requirement ID {$id}");$this->json('success','Requirement acknowledged.');}
+    public function requestCorrection() {$this->employeePost();$id=(int)($_POST['id']??0);$doc=$this->documentModel->getDocument($id);if(!$doc)$this->json('error','Document not found.',[],404);Auth::requireOwnership($doc['employee_id']);$remarks=trim($_POST['remarks']??'');if($remarks==='')$this->json('error','Explain the requested correction.',[],422);$this->documentModel->db->update('documents',['status'=>'Under Review','remarks'=>'Employee correction request: '.$remarks],"id=?",[$id]);AuditLogger::log('REQUEST_DOCUMENT_CORRECTION','Document Management',"Requested correction for document ID {$id}");$this->json('success','Correction request sent to Admin/HR.');}
+    public function storeContract() {$this->adminPost();$employee=(int)($_POST['employee_id']??0);if(!$this->exists('employees',$employee))$this->json('error','Select a valid employee.',[],422);try{$data=$this->contractInput();$file=$this->saveUpload('contract_file','contracts',['pdf'],10485760);$data+=['employee_id'=>$employee,'document_file'=>$file['path'],'original_name'=>$file['original'],'created_by'=>Auth::user()['id']];$id=$this->documentModel->db->insert('contracts',$data);$this->notifications->createForEmployee($employee,'New employment contract','A new contract is available for review.','info','index.php?page=documents_contracts');AuditLogger::log('CREATE_CONTRACT','Contract Management',"Created contract ID {$id}");$this->json('success','Contract uploaded.',['id'=>(int)$id]);}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}}
+    public function renewContract() {$this->adminPost();$id=(int)($_POST['id']??0);try{$data=$this->contractInput();$file=$this->saveUpload('contract_file','contracts',['pdf'],10485760);$data+=['document_file'=>$file['path'],'original_name'=>$file['original'],'created_by'=>Auth::user()['id']];[$old,$new]=$this->documentModel->renewContract($id,$data);$this->notifications->createForEmployee($old['employee_id'],'Contract renewed','Your renewed contract is available.','success','index.php?page=documents_contracts');AuditLogger::log('RENEW_CONTRACT','Contract Management',"Renewed contract ID {$id} as ID {$new}",null,['record_type'=>'contract','record_id'=>$new,'old_value'=>['contract_id'=>$id,'status'=>$old['status'],'end_date'=>$old['end_date']],'new_value'=>['contract_id'=>$new,'status'=>'Active','start_date'=>$data['start_date'],'end_date'=>$data['end_date']]]);$this->json('success','Contract renewed; the previous version was archived.',['id'=>(int)$new]);}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}}
+    public function downloadContract() {Auth::requireAuth();$c=$this->documentModel->getContract((int)($_GET['id']??0));if(!$c){http_response_code(404);exit('Contract not found.');}Auth::requireOwnership($c['employee_id']);$this->downloadStored($c['document_file'],'employment-contract-v'.$c['version_no']);}
+    public function acknowledgeContract() {$this->employeePost();$id=(int)($_POST['id']??0);$c=$this->documentModel->getContract($id);if(!$c)$this->json('error','Contract not found.',[],404);Auth::requireOwnership($c['employee_id']);$this->documentModel->db->update('contracts',['acknowledged_at'=>date('Y-m-d H:i:s')],"id=?",[$id]);AuditLogger::log('ACKNOWLEDGE_CONTRACT','Contract Management',"Acknowledged contract ID {$id}");$this->json('success','Contract acknowledged.');}
+    private function contractInput() {$type=sanitize_input($_POST['contract_type']??'Employment');if(!in_array($type,['Employment','Probation','Regularization','Consultancy','Internship'],true))throw new RuntimeException('Invalid contract type.');$start=$this->dateOrNull($_POST['start_date']??'');$end=$this->dateOrNull($_POST['end_date']??'');if(!$start||($end&&strtotime($end)<strtotime($start)))throw new RuntimeException('Contract end date must be on or after its start date.');return ['contract_type'=>$type,'start_date'=>$start,'end_date'=>$end,'status'=>'Active','approval_status'=>'Approved','remarks'=>trim($_POST['remarks']??'')];}
+    private function saveUpload($field,$folder,array $extensions,$max) {if(!isset($_FILES[$field])||$_FILES[$field]['error']!==UPLOAD_ERR_OK)throw new RuntimeException('Select a file to upload.');$f=$_FILES[$field];if($f['size']<1||$f['size']>$max)throw new RuntimeException('The file exceeds the allowed size.');$ext=strtolower(pathinfo(basename($f['name']),PATHINFO_EXTENSION));$extensions=array_map('trim',$extensions);if(!in_array($ext,$extensions,true))throw new RuntimeException('This file extension is not allowed.');$mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);$allowed=['application/pdf','image/jpeg','image/png','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];if(!in_array($mime,$allowed,true))throw new RuntimeException('The uploaded file content is not allowed.');$dir=ROOT_PATH.'public/uploads/'.$folder.'/';if(!is_dir($dir)&&!mkdir($dir,0755,true))throw new RuntimeException('Unable to prepare upload storage.');$name=bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($f['tmp_name'],$dir.$name))throw new RuntimeException('Unable to store the uploaded file.');return ['path'=>'uploads/'.$folder.'/'.$name,'original'=>preg_replace('/[^A-Za-z0-9._-]+/','-',basename($f['name'])),'mime'=>$mime,'size'=>round($f['size']/1048576,2).' MB'];}
+    private function downloadStored($relative,$fallback) {$root=realpath(ROOT_PATH.'public/uploads');$path=realpath(ROOT_PATH.'public/'.str_replace(['/',chr(92)],DIRECTORY_SEPARATOR,ltrim((string)$relative,'/'.chr(92))));if(!$root||!$path||!is_file($path)||strpos($path,$root.DIRECTORY_SEPARATOR)!==0){http_response_code(404);exit('File not found.');}$name=preg_replace('/[^A-Za-z0-9._-]+/','-',$fallback).'.'.pathinfo($path,PATHINFO_EXTENSION);header('Content-Type:'.(mime_content_type($path)?:'application/octet-stream'));header('Content-Length:'.filesize($path));header('Content-Disposition:attachment; filename="'.$name.'"');header('X-Content-Type-Options:nosniff');readfile($path);exit;}
+    private function exists($table,$id){return $id?$this->documentModel->db->fetchOne("SELECT id FROM {$table} WHERE id=?",[$id]):false;}private function dateOrNull($v){if($v==='')return null;$d=DateTime::createFromFormat('Y-m-d',$v);return $d&&$d->format('Y-m-d')===$v?$v:null;}private function extensions($v){$a=array_filter(array_map(fn($x)=>preg_replace('/[^a-z0-9]/','',strtolower($x)),explode(',',$v)));return implode(',',array_unique($a))?:'pdf,jpg,jpeg,png';}
+    private function sendExpiryNotifications() {
+        if(!Auth::isAdmin())return;
+        foreach($this->documentModel->db->fetchAll("SELECT id,employee_id,title,expiry_date FROM documents WHERE expiry_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE,INTERVAL 30 DAY) AND status='Approved'") as $d){$link='index.php?page=documents';$exists=$this->documentModel->db->fetchOne("SELECT n.id FROM notifications n JOIN users u ON u.id=n.user_id WHERE u.employee_id=? AND n.title='Document expiring' AND n.related_id=? AND n.created_at>=DATE_SUB(NOW(),INTERVAL 7 DAY)",[$d['employee_id'],$d['id']]);if(!$exists)$this->notifications->createForEmployee($d['employee_id'],'Document expiring',"{$d['title']} expires on {$d['expiry_date']}.",'warning',$link,'documents',$d['id']);$adminExists=$this->documentModel->db->fetchOne("SELECT id FROM notifications WHERE title='Expiring document' AND related_id=? AND created_at>=DATE_SUB(NOW(),INTERVAL 7 DAY)",[$d['id']]);if(!$adminExists)$this->notifications->createForAdmins('Expiring document',"{$d['title']} expires on {$d['expiry_date']}.",'warning',$link,'documents',$d['id']);}
+        foreach($this->documentModel->db->fetchAll("SELECT id,employee_id,contract_type,end_date FROM contracts WHERE status='Active' AND end_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE,INTERVAL 60 DAY)") as $c){$link='index.php?page=documents_contracts';$exists=$this->documentModel->db->fetchOne("SELECT n.id FROM notifications n JOIN users u ON u.id=n.user_id WHERE u.employee_id=? AND n.title='Contract expiring' AND n.related_id=? AND n.created_at>=DATE_SUB(NOW(),INTERVAL 7 DAY)",[$c['employee_id'],$c['id']]);if(!$exists)$this->notifications->createForEmployee($c['employee_id'],'Contract expiring',"Your {$c['contract_type']} contract expires on {$c['end_date']}.",'warning',$link,'documents',$c['id']);$adminExists=$this->documentModel->db->fetchOne("SELECT id FROM notifications WHERE title='Expiring contract' AND related_id=? AND created_at>=DATE_SUB(NOW(),INTERVAL 7 DAY)",[$c['id']]);if(!$adminExists)$this->notifications->createForAdmins('Expiring contract',"{$c['contract_type']} contract expires on {$c['end_date']}.",'warning',$link,'documents',$c['id']);}
+    }
+    private function adminPost(){Auth::requirePermission('manage_documents');Auth::requireMethod('POST');$this->csrf();}private function employeePost(){Auth::requirePermission('upload_own_documents');Auth::requireMethod('POST');$this->csrf();}private function csrf(){if(!verify_csrf_token($_POST['csrf_token']??''))$this->json('error','Invalid CSRF token.',[],403);}
 }

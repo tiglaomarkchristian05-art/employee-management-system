@@ -1,24 +1,16 @@
 <?php
-
-require_once ROOT_PATH . 'core/Model.php';
-
+require_once ROOT_PATH.'core/Model.php';
 class Loan extends Model {
-    protected $table = 'loans';
-
-    public function getLoansWithDetails($employeeId = null) {
-        $sql = "SELECT l.*, e.first_name, e.last_name, e.employee_code, d.name as department_name
-                FROM loans l
-                JOIN employees e ON l.employee_id = e.id
-                LEFT JOIN departments d ON e.department_id = d.id";
-        if ($employeeId) {
-            $sql .= " WHERE l.employee_id = ? ORDER BY l.id DESC";
-            return $this->db->fetchAll($sql, [$employeeId]);
-        }
-        $sql .= " ORDER BY l.id DESC";
-        return $this->db->fetchAll($sql);
-    }
-
-    public function getLoanPayments($loanId) {
-        return $this->db->fetchAll("SELECT * FROM loan_payments WHERE loan_id = ? ORDER BY payment_date DESC", [$loanId]);
-    }
+ protected $table='loans';
+ const ACTIVE=['Submitted','Under Review','Returned','Approved','Released','Active'];
+ public function programs($active=false){return $this->db->fetchAll('SELECT * FROM loan_programs'.($active?' WHERE is_active=1':'').' ORDER BY name');}
+ public function program($id){return $this->db->fetchOne('SELECT * FROM loan_programs WHERE id=?',[(int)$id]);}
+ public function getLoansWithDetails($employeeId=null){$sql="SELECT l.*,p.name program_name,p.required_documents,e.first_name,e.last_name,e.employee_code,d.name department_name,(SELECT COALESCE(SUM(x.amount),0) FROM loan_payments x WHERE x.loan_id=l.id) paid_amount FROM loans l LEFT JOIN loan_programs p ON p.id=l.loan_program_id JOIN employees e ON e.id=l.employee_id LEFT JOIN departments d ON d.id=e.department_id";$params=[];if($employeeId){$sql.=' WHERE l.employee_id=?';$params[]=(int)$employeeId;}return $this->db->fetchAll($sql.' ORDER BY l.id DESC',$params);}
+ public function details($id,$employeeId=null){$sql="SELECT l.*,p.name program_name,p.maximum_amount,p.required_documents,e.first_name,e.last_name,e.employee_code FROM loans l LEFT JOIN loan_programs p ON p.id=l.loan_program_id JOIN employees e ON e.id=l.employee_id WHERE l.id=?";$params=[(int)$id];if($employeeId){$sql.=' AND l.employee_id=?';$params[]=(int)$employeeId;}return $this->db->fetchOne($sql,$params);}
+ public function eligibility($programId,$employeeId){$p=$this->program($programId);$e=$this->db->fetchOne('SELECT * FROM employees WHERE id=?',[(int)$employeeId]);if(!$p||!$e)return [false,'Loan program or employee was not found.'];if(!$p['is_active'])return [false,'This loan program is inactive.'];$statuses=array_filter(array_map('trim',explode(',',$p['eligible_employment_statuses'])));if($statuses&&!in_array($e['status'],$statuses,true))return [false,'Your employment status is not eligible.'];$months=((int)date('Y')-(int)date('Y',strtotime($e['hire_date'])))*12+(int)date('n')-(int)date('n',strtotime($e['hire_date']));if($months<(int)$p['minimum_tenure_months'])return [false,'Minimum tenure requirement is not met.'];$deps=array_filter(array_map('intval',explode(',',(string)$p['eligible_department_ids'])));if($deps&&!in_array((int)$e['department_id'],$deps,true))return [false,'Your department is not eligible.'];return [true,'Eligible'];}
+ public function apply($programId,$employeeId,$amount,$term,$notes,$file=null,$original=null){[$ok,$reason]=$this->eligibility($programId,$employeeId);if(!$ok)throw new RuntimeException($reason);$p=$this->program($programId);if($amount<=0||($p['maximum_amount']>0&&$amount>$p['maximum_amount']))throw new RuntimeException('Requested amount is outside the allowed limit.');if($term<$p['minimum_term_months']||$term>$p['maximum_term_months'])throw new RuntimeException('Selected term is outside the allowed range.');$pdo=$this->db->getConnection();$pdo->beginTransaction();try{$dup=$this->db->fetchOne("SELECT id FROM loans WHERE employee_id=? AND loan_program_id=? AND status IN ('Submitted','Under Review','Returned','Approved','Released','Active') FOR UPDATE",[$employeeId,$programId]);if($dup)throw new RuntimeException('You already have an active application for this loan program.');$id=$this->create(['employee_id'=>$employeeId,'loan_program_id'=>$programId,'loan_type'=>$p['name'],'requested_amount'=>$amount,'principal_amount'=>$amount,'approved_amount'=>null,'application_notes'=>$notes,'requirement_file'=>$file,'original_name'=>$original,'interest_rate'=>$p['interest_rate'],'term_months'=>$term,'monthly_deduction'=>0,'total_payable'=>0,'balance_remaining'=>0,'status'=>'Submitted']);$pdo->commit();return $id;}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}}
+ public function schedule($loanId){return $this->db->fetchAll('SELECT * FROM loan_payment_schedules WHERE loan_id=? ORDER BY installment_no',[(int)$loanId]);}
+ public function payments($loanId){return $this->db->fetchAll('SELECT * FROM loan_payments WHERE loan_id=? ORDER BY payment_date DESC,id DESC',[(int)$loanId]);}
+ public function generateSchedule($loanId,$start){$loan=$this->details($loanId);if(!$loan||!in_array($loan['status'],['Approved','Released','Active'],true))throw new RuntimeException('Loan must be approved before generating a schedule.');$this->db->delete('loan_payment_schedules','loan_id=?',[$loanId]);$term=(int)$loan['term_months'];$total=(float)$loan['total_payable'];$base=round($total/$term,2);$used=0;for($i=1;$i<=$term;$i++){$amount=$i===$term?round($total-$used,2):$base;$used+=$amount;$date=(new DateTime($start))->modify('+'.($i-1).' month')->format('Y-m-d');$this->db->insert('loan_payment_schedules',['loan_id'=>$loanId,'installment_no'=>$i,'due_date'=>$date,'amount_due'=>$amount]);}return $term;}
+ public function recordPayment($loanId,$amount,$date,$method,$reference,$userId,$remarks=''){$pdo=$this->db->getConnection();$pdo->beginTransaction();try{$loan=$this->db->fetchOne('SELECT * FROM loans WHERE id=? FOR UPDATE',[$loanId]);if(!$loan||$loan['status']!=='Active')throw new RuntimeException('Only an active loan can receive payments.');$balance=(float)$loan['balance_remaining'];if($amount<=0||$amount>$balance+0.001)throw new RuntimeException('Payment must be positive and cannot exceed the remaining balance.');$remaining=$amount;$rows=$this->db->fetchAll("SELECT * FROM loan_payment_schedules WHERE loan_id=? AND status<>'Paid' ORDER BY installment_no FOR UPDATE",[$loanId]);foreach($rows as $row){if($remaining<=0)break;$due=(float)$row['amount_due']-(float)$row['amount_paid'];$applied=min($remaining,$due);$paid=(float)$row['amount_paid']+$applied;$status=$paid+0.001>=(float)$row['amount_due']?'Paid':'Partial';$this->db->update('loan_payment_schedules',['amount_paid'=>$paid,'status'=>$status,'paid_at'=>$status==='Paid'?date('Y-m-d H:i:s'):null],'id=?',[$row['id']]);$remaining-=$applied;}$this->db->insert('loan_payments',['loan_id'=>$loanId,'payment_date'=>$date,'amount'=>$amount,'payment_method'=>$method,'reference_no'=>$reference,'recorded_by'=>$userId,'remarks'=>$remarks]);$new=round($balance-$amount,2);$status=$new<=0?'Paid':'Active';$this->update($loanId,['balance_remaining'=>$new,'status'=>$status,'paid_at'=>$status==='Paid'?date('Y-m-d H:i:s'):null]);$pdo->commit();return [$new,$status,$loan];}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}}
 }

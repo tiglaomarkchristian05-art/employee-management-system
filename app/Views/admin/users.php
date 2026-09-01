@@ -102,7 +102,7 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
 
                     <div class="mb-3">
                         <label class="form-label text-secondary fw-bold">Password</label>
-                        <input type="password" class="form-control" name="password" value="User@123" required>
+                        <input type="password" class="form-control" name="password" minlength="8" autocomplete="new-password" required>
                     </div>
 
                     <div class="mb-3">
@@ -191,7 +191,7 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                     <p class="text-secondary">Resetting password for user account: <strong id="reset_pass_username" class="text-primary"></strong></p>
                     <div class="mb-3">
                         <label class="form-label text-secondary fw-bold">New Password</label>
-                        <input type="text" class="form-control" name="new_password" value="User@123" required>
+                        <input type="password" class="form-control" name="new_password" minlength="8" autocomplete="new-password" required>
                     </div>
                 </div>
                 <div class="modal-footer">

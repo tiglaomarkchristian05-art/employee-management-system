@@ -17,7 +17,14 @@ require APP_PATH . 'Views/layouts/sidebar.php';
             <?php foreach ($settings as $setting): ?>
             <div class="mb-3">
                 <label class="form-label text-secondary fw-bold"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $setting['setting_key']))); ?></label>
-                <input type="text" class="form-control" name="settings[<?= $setting['setting_key']; ?>]" value="<?= htmlspecialchars($setting['setting_value']); ?>">
+                <?php $key=$setting['setting_key'];$value=$setting['setting_value']; ?>
+                <?php if($key==='tax_year'): ?>
+                <input type="number" class="form-control" name="settings[<?= $key; ?>]" value="<?= htmlspecialchars($value); ?>" min="2000" max="2100" required>
+                <?php elseif($key==='theme_mode'): ?>
+                <select class="form-select" name="settings[<?= $key; ?>]" required><option value="light" <?= $value==='light'?'selected':''; ?>>Light</option><option value="dark" <?= $value==='dark'?'selected':''; ?>>Dark</option></select>
+                <?php else: ?>
+                <input type="text" class="form-control" name="settings[<?= $key; ?>]" value="<?= htmlspecialchars($value); ?>" maxlength="<?= $key==='company_name'?150:5; ?>" required>
+                <?php endif; ?>
                 <small class="text-secondary"><?= htmlspecialchars($setting['description'] ?? ''); ?></small>
             </div>
             <?php endforeach; ?>

@@ -1,212 +1,25 @@
-<?php
-require APP_PATH . 'Views/layouts/header.php';
-require APP_PATH . 'Views/layouts/sidebar.php';
-?>
-
-<div id="main-content">
-    <?php require APP_PATH . 'Views/layouts/navbar.php'; ?>
-
-    <div class="d-flex align-items-center justify-content-between my-3">
-        <div>
-            <h4 class="fw-bold mb-1" style="color: var(--text);"><i class="fa-solid fa-folder-tree me-2" style="color: var(--warning);"></i> Document & Contract Management</h4>
-            <p class="text-secondary mb-0">Secure file repository, QR verification stamps, contract renewal tracking, and approval workflows</p>
-        </div>
-        <button class="btn btn-warning text-white btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
-            <i class="fa-solid fa-cloud-arrow-up me-1"></i> Upload New Document
-        </button>
-    </div>
-
-    <?php if (!empty($expiring_contracts)): ?>
-    <div class="alert alert-warning glass-card d-flex align-items-center justify-content-between mb-4 text-warning border-warning" role="alert">
-        <div>
-            <i class="fa-solid fa-triangle-exclamation fs-4 me-2"></i>
-            <strong>Contract Expiry Alert:</strong> You have <?= count($expiring_contracts); ?> employment contract(s) due for renewal within 60 days.
-        </div>
-        <a href="index.php?page=documents_contracts" class="btn btn-sm btn-warning text-white fw-bold">Review Contracts</a>
-    </div>
-    <?php endif; ?>
-
-    <div class="glass-card p-4 mb-4">
-        <h5 class="fw-bold mb-3" style="color: var(--text);"><i class="fa-solid fa-file-pdf text-danger me-2"></i> Employee Document Repository</h5>
-        <div class="table-responsive">
-            <table class="table align-middle datatable-init">
-                <thead>
-                    <tr>
-                        <th>Document Title</th>
-                        <th>Category</th>
-                        <th>Document No.</th>
-                        <th>QR Verification Code</th>
-                        <th>Expiry Date</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($documents as $doc): ?>
-                    <tr>
-                        <td class="fw-bold" style="color: var(--text);">
-                            <i class="fa-solid fa-file-pdf text-danger me-2"></i> <?= htmlspecialchars($doc['title']); ?>
-                        </td>
-                        <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($doc['category_name']); ?></span></td>
-                        <td><code><?= htmlspecialchars($doc['document_number']); ?></code></td>
-                        <td><small class="badge badge-soft-info"><i class="fa-solid fa-qrcode me-1"></i> <?= htmlspecialchars($doc['qr_code'] ?? 'QR-VERIFIED'); ?></small></td>
-                        <td><?= $doc['expiry_date'] ?? 'N/A'; ?></td>
-                        <td>
-                            <?php if ($doc['status'] === 'Verified'): ?>
-                                <span class="badge badge-soft-success"><i class="fa-solid fa-check-circle me-1"></i> Verified</span>
-                            <?php else: ?>
-                                <span class="badge badge-soft-warning">Pending Audit</span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-sm btn-outline-info" onclick="viewDocModal(<?= (int)$doc['id']; ?>, <?= json_encode($doc['title']); ?>, <?= json_encode($doc['qr_code'] ?? 'QR-VERIFIED'); ?>)">
-                                    <i class="fa-solid fa-eye me-1"></i> View
-                                </button>
-                                <?php if (Auth::hasRole(['Super Admin', 'HR Manager'])): ?>
-                                <button class="btn btn-sm btn-outline-danger btn-delete-doc" data-id="<?= $doc['id']; ?>" title="Delete Document">
-                                    <i class="fa-solid fa-trash"></i>
-                                </button>
-                                <?php endif; ?>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
+<?php require APP_PATH.'Views/layouts/header.php';require APP_PATH.'Views/layouts/sidebar.php';$csrf=generate_csrf_token();$tone=fn($s)=>in_array($s,['Approved'],true)?'success':(in_array($s,['Returned','Renewal Required'],true)?'warning':(in_array($s,['Rejected','Expired'],true)?'danger':'primary')); ?>
+<div id="main-content"><?php require APP_PATH.'Views/layouts/navbar.php'; ?>
+ <div class="module-toolbar my-3"><div class="module-toolbar-title"><span class="module-toolbar-icon"><i class="fa-solid fa-folder-open"></i></span><div><h5>Document Management</h5><small><?= $is_admin?'Review employee submissions, requirements and expirations':'Submit and track your required documents'; ?></small></div></div><div class="d-flex gap-2 flex-wrap"><a href="index.php?page=documents_contracts" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-file-contract"></i>Contracts</a><?php if($is_admin): ?><button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#typeModal">Document Type</button><button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#requirementModal">Assign Requirement</button><?php endif; ?><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadModal"><i class="fa-solid fa-upload"></i>Upload Document</button></div></div>
+ <?php if($expiring_contracts): ?><div class="alert alert-warning glass-card"><i class="fa-solid fa-triangle-exclamation me-2"></i><strong><?= count($expiring_contracts); ?> contract(s)</strong> expire within 60 days. <a href="index.php?page=documents_contracts">Review contracts</a></div><?php endif; ?>
+ <div class="row g-3 mb-4"><?php foreach([['Requirements',count($requirements),'fa-list-check','primary'],['Submitted',count(array_filter($documents,fn($d)=>in_array($d['status'],['Submitted','Under Review']))),'fa-file-circle-question','warning'],['Approved',count(array_filter($documents,fn($d)=>$d['status']==='Approved')),'fa-circle-check','success'],['Expiring / Renewal',count(array_filter($documents,fn($d)=>in_array($d['status'],['Expired','Renewal Required']))),'fa-clock','danger']] as $m): ?><div class="col-xl-3 col-md-6"><div class="glass-card p-3 h-100"><div class="d-flex justify-content-between"><div><small class="text-secondary text-uppercase fw-bold"><?= $m[0]; ?></small><h3 class="mb-0"><?= $m[1]; ?></h3></div><span class="scope-icon"><i class="fa-solid <?= $m[2]; ?> text-<?= $m[3]; ?>"></i></span></div></div></div><?php endforeach; ?></div>
+ <div class="glass-card p-4 mb-4" id="documentRequirementsSection"><div class="d-flex justify-content-between align-items-center mb-3"><div><div class="section-kicker">REQUIREMENTS</div><h5 class="mb-0"><?= $is_admin?'Assigned Employee Requirements':'My Required Documents'; ?></h5></div></div><div class="table-responsive"><table class="table align-middle datatable-init"><thead><tr><?php if($is_admin): ?><th>Employee</th><?php endif; ?><th>Requirement</th><th>Type</th><th>Due</th><th>Status</th><th>Remarks</th><th>Action</th></tr></thead><tbody><?php foreach($requirements as $r): ?><tr><?php if($is_admin): ?><td><strong><?= htmlspecialchars($r['first_name'].' '.$r['last_name']); ?></strong><small class="d-block text-secondary"><?= htmlspecialchars($r['employee_code']); ?></small></td><?php endif; ?><td><strong><?= htmlspecialchars($r['title']); ?></strong><small class="d-block text-secondary"><?= htmlspecialchars($r['instructions']??''); ?></small></td><td><?= htmlspecialchars($r['category_name']); ?></td><td><?= $r['due_date']?date('M j, Y',strtotime($r['due_date'])):'No deadline'; ?></td><td><span class="badge badge-soft-<?= $tone($r['status']); ?>"><?= htmlspecialchars($r['status']); ?></span></td><td><small><?= htmlspecialchars($r['remarks']??'â€”'); ?></small></td><td><?php if(!$is_admin): ?><div class="d-flex gap-1"><?php if(!$r['acknowledged_at']): ?><button class="btn btn-outline-primary btn-sm btn-ack" data-id="<?= (int)$r['id']; ?>">Acknowledge</button><?php endif; ?><?php if(in_array($r['status'],['Pending','Returned','Rejected','Expired','Renewal Required'],true)): ?><button class="btn btn-primary btn-sm btn-submit-req" data-id="<?= (int)$r['id']; ?>" data-title="<?= htmlspecialchars($r['title']); ?>" data-category="<?= (int)$r['category_id']; ?>" data-bs-toggle="modal" data-bs-target="#uploadModal"><?= $r['current_document_id']?'Replace':'Upload'; ?></button><?php endif; ?></div><?php else: ?><span class="text-secondary small"><?= $r['acknowledged_at']?'Acknowledged':'Awaiting acknowledgement'; ?></span><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div></div>
+ <div class="glass-card p-4 mb-4" id="documentRepositorySection"><div class="section-kicker">DOCUMENT REPOSITORY</div><h5>Submissions &amp; Version History</h5><div class="table-responsive"><table class="table align-middle datatable-init" id="documentsTable"><thead><tr><?php if($is_admin): ?><th>Employee</th><?php endif; ?><th>Document</th><th>Type</th><th>Version</th><th>Issue / Expiry</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead><tbody><?php foreach($documents as $d): ?><tr><?php if($is_admin): ?><td><?= htmlspecialchars($d['first_name'].' '.$d['last_name']); ?></td><?php endif; ?><td><strong><?= htmlspecialchars($d['title']); ?></strong><small class="d-block text-secondary"><?= htmlspecialchars($d['document_number']?:$d['original_name']); ?></small></td><td><?= htmlspecialchars($d['category_name']); ?></td><td>v<?= (int)$d['version_no']; ?></td><td><small>Issued: <?= $d['issue_date']?:'â€”'; ?><br>Expires: <?= $d['expiry_date']?:'â€”'; ?></small></td><td><span class="badge badge-soft-<?= $tone($d['status']); ?>"><?= htmlspecialchars($d['status']); ?></span></td><td><small><?= htmlspecialchars($d['remarks']??'â€”'); ?></small></td><td><div class="d-flex gap-1 flex-wrap"><a class="btn btn-outline-primary btn-sm" href="index.php?page=documents_download&amp;id=<?= (int)$d['id']; ?>"><i class="fa-solid fa-download"></i></a><?php if($is_admin&&in_array($d['status'],['Submitted','Under Review'],true)): ?><button class="btn btn-primary btn-sm btn-review" data-id="<?= (int)$d['id']; ?>" data-title="<?= htmlspecialchars($d['title']); ?>" data-bs-toggle="modal" data-bs-target="#reviewModal">Review</button><?php elseif(!$is_admin&&$d['status']==='Approved'): ?><button class="btn btn-outline-warning btn-sm btn-correction" data-id="<?= (int)$d['id']; ?>">Request Correction</button><?php endif; ?></div></td></tr><?php endforeach; ?></tbody></table></div></div>
 </div>
-
-<div class="modal fade" id="uploadDocModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content text-dark">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold" style="color: var(--text);"><i class="fa-solid fa-cloud-arrow-up text-warning me-2"></i> Drag & Drop Upload Document</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="uploadDocForm" enctype="multipart/form-data">
-                <?= csrf_input(); ?>
-                <div class="modal-body">
-                    <?php if (Auth::hasRole(['Super Admin', 'HR Manager'])): ?>
-                    <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold">Select Employee / Candidate</label>
-                        <select class="form-select" name="employee_id" required>
-                            <option value="">-- Choose Employee --</option>
-                            <?php foreach ($employees as $emp): ?>
-                                <option value="<?= $emp['id']; ?>"><?= htmlspecialchars($emp['first_name'] . ' ' . $emp['last_name'] . ' (' . $emp['employee_code'] . ')'); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <?php endif; ?>
-
-                    <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold">Document Category</label>
-                        <select class="form-select" name="category_id" required>
-                            <?php foreach ($categories as $cat): ?>
-                                <option value="<?= $cat['id']; ?>"><?= htmlspecialchars($cat['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold">Document Title</label>
-                        <input type="text" class="form-control" name="title" placeholder="e.g. NBI Clearance 2026" required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold">Document / ID Number</label>
-                        <input type="text" class="form-control" name="document_number" placeholder="e.g. NBI-991823">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold">Expiration Date (Optional)</label>
-                        <input type="date" class="form-control" name="expiry_date">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold">File Upload (PDF, JPG, PNG)</label>
-                        <input type="file" name="document_file" class="form-control" required>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning text-white fw-bold"><i class="fa-solid fa-upload me-1"></i> Upload & Apply QR Verification</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
+<div class="modal fade" id="uploadModal"><div class="modal-dialog modal-dialog-centered"><form class="modal-content ajax-form" data-url="index.php?page=documents_upload" enctype="multipart/form-data"><div class="modal-header"><h5 class="modal-title">Upload Document</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body row g-3"><input type="hidden" name="csrf_token" value="<?= $csrf; ?>"><input type="hidden" name="requirement_id" id="uploadRequirementId"><?php if($is_admin): ?><div class="col-12"><label class="form-label">Employee *</label><select class="form-select" name="employee_id" required><option value="">Choose employee</option><?php foreach($employees as $e): ?><option value="<?= (int)$e['id']; ?>"><?= htmlspecialchars($e['first_name'].' '.$e['last_name'].' ('.$e['employee_code'].')'); ?></option><?php endforeach; ?></select></div><?php endif; ?><div class="col-12"><label class="form-label">Document Type *</label><select class="form-select" name="category_id" id="uploadCategory" required><?php foreach($categories as $c): ?><option value="<?= (int)$c['id']; ?>"><?= htmlspecialchars($c['name']); ?></option><?php endforeach; ?></select></div><div class="col-12"><label class="form-label">Title *</label><input class="form-control" name="title" id="uploadTitle" required></div><div class="col-md-6"><label class="form-label">Document Number</label><input class="form-control" name="document_number"></div><div class="col-md-6"><label class="form-label">Issue Date</label><input type="date" class="form-control" name="issue_date"></div><div class="col-md-6"><label class="form-label">Expiration Date</label><input type="date" class="form-control" name="expiry_date"></div><div class="col-md-6"><label class="form-label">File *</label><input type="file" class="form-control" name="document_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div></div><div class="modal-footer"><button class="btn btn-outline-secondary" data-bs-dismiss="modal" type="button">Cancel</button><button class="btn btn-primary">Submit Document</button></div></form></div></div>
+<?php if($is_admin): ?>
+<div class="modal fade" id="typeModal"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="documentTypeForm" data-url="index.php?page=documents_type_store"><div class="modal-header"><h5 class="modal-title">Create Document Type</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body row g-3"><input type="hidden" name="csrf_token" value="<?= $csrf; ?>"><div class="col-12"><label class="form-label">Name *</label><input class="form-control" name="name" required></div><div class="col-12"><label class="form-label">Description</label><textarea class="form-control" name="description"></textarea></div><div class="col-12"><label class="form-label">Instructions</label><textarea class="form-control" name="instructions"></textarea></div><div class="col-md-8"><label class="form-label">Extensions</label><input class="form-control" name="allowed_extensions" value="pdf,jpg,jpeg,png"></div><div class="col-md-4"><label class="form-label">Max MB</label><input type="number" min="1" max="20" class="form-control" name="max_size_mb" value="5"></div><label><input type="checkbox" name="is_required" value="1"> Required by default</label></div><div class="modal-footer"><button class="btn btn-primary" type="submit" id="createDocumentTypeButton">Create Type</button></div></form></div></div>
+<div class="modal fade" id="requirementModal"><div class="modal-dialog modal-dialog-centered"><form class="modal-content ajax-form" data-url="index.php?page=documents_requirement_assign"><div class="modal-header"><h5 class="modal-title">Assign Document Requirement</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body row g-3"><input type="hidden" name="csrf_token" value="<?= $csrf; ?>"><div class="col-12"><label class="form-label">Employee *</label><select class="form-select" name="employee_id" required><?php foreach($employees as $e): ?><option value="<?= (int)$e['id']; ?>"><?= htmlspecialchars($e['first_name'].' '.$e['last_name']); ?></option><?php endforeach; ?></select></div><div class="col-12"><label class="form-label">Document Type *</label><select class="form-select" name="category_id"><?php foreach($categories as $c): ?><option value="<?= (int)$c['id']; ?>"><?= htmlspecialchars($c['name']); ?></option><?php endforeach; ?></select></div><div class="col-12"><label class="form-label">Requirement Title *</label><input class="form-control" name="title" required></div><div class="col-12"><label class="form-label">Instructions</label><textarea class="form-control" name="instructions"></textarea></div><div class="col-12"><label class="form-label">Due Date</label><input type="date" class="form-control" name="due_date"></div></div><div class="modal-footer"><button class="btn btn-primary">Assign Requirement</button></div></form></div></div>
+<div class="modal fade" id="reviewModal"><div class="modal-dialog modal-dialog-centered"><form class="modal-content ajax-form" data-url="index.php?page=documents_review"><div class="modal-header"><h5 class="modal-title">Review Document</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" name="csrf_token" value="<?= $csrf; ?>"><input type="hidden" name="id" id="reviewId"><p id="reviewTitle"></p><label class="form-label">Decision *</label><select class="form-select mb-3" name="status"><option>Under Review</option><option>Approved</option><option>Returned</option><option>Rejected</option></select><label class="form-label">Remarks</label><textarea class="form-control" name="remarks" placeholder="Required for Return or Reject"></textarea></div><div class="modal-footer"><button class="btn btn-primary">Save Decision</button></div></form></div></div>
+<?php endif; ?>
 <script>
-$(document).ready(function() {
-    $(document).on('submit', '#uploadDocForm', function(e) {
-        e.preventDefault();
-        var formData = new FormData(this);
-        $.ajax({
-            url: 'index.php?page=documents_upload',
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            dataType: 'json',
-            success: function(res) {
-                if (res.status === 'success') {
-                    showToast('success', res.message);
-                    setTimeout(() => location.reload(), 1200);
-                } else {
-                    Swal.fire('Error', res.message, 'error');
-                }
-            }
-        });
-    });
-
-    $(document).on('click', '.btn-delete-doc', function() {
-        var id = $(this).data('id');
-        var csrf = $('input[name="csrf_token"]').val();
-        Swal.fire({
-            title: 'Delete Document?',
-            text: 'Are you sure you want to permanently remove this document record?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            confirmButtonText: 'Yes, Delete'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                $.ajax({
-                    url: 'index.php?page=documents_delete',
-                    type: 'POST',
-                    data: { id: id, csrf_token: csrf },
-                    dataType: 'json',
-                    success: function(res) {
-                        if (res.status === 'success') {
-                            showToast('success', res.message);
-                            setTimeout(() => location.reload(), 1000);
-                        } else {
-                            Swal.fire('Error', res.message, 'error');
-                        }
-                    }
-                });
-            }
-        });
-    });
+$(function(){
+ $('.ajax-form').on('submit',function(e){e.preventDefault();const f=this;$.ajax({url:f.dataset.url,type:'POST',data:new FormData(f),contentType:false,processData:false,dataType:'json',success:r=>{if(r.status==='success'){showToast('success',r.message);setTimeout(()=>location.reload(),700)}else showErrorDialog(r.message)},error:x=>showErrorDialog(x.responseJSON?.message||'The request could not be completed.')})});
+$('#documentTypeForm').on('submit',function(e){e.preventDefault();const f=this,button=$('#createDocumentTypeButton');button.prop('disabled',true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving');$.ajax({url:f.dataset.url,type:'POST',data:new FormData(f),contentType:false,processData:false,dataType:'json'}).done(r=>{if(r.status!=='success'){showErrorDialog(r.message);return}const category=$('#requirementModal select[name="category_id"]');if(!category.find(`option[value="${r.data.id}"]`).length)category.append(new Option(f.elements.name.value,r.data.id));category.val(String(r.data.id));const typeModal=document.getElementById('typeModal');typeModal.addEventListener('hidden.bs.modal',()=>bootstrap.Modal.getOrCreateInstance(document.getElementById('requirementModal')).show(),{once:true});bootstrap.Modal.getOrCreateInstance(typeModal).hide();showToast('success',r.message)}).fail(x=>showErrorDialog(x.responseJSON?.message||'Unable to save the document type.')).always(()=>button.prop('disabled',false).text('Create Type'))});
+ $('.btn-submit-req').on('click',function(){$('#uploadRequirementId').val(this.dataset.id);$('#uploadTitle').val(this.dataset.title);$('#uploadCategory').val(this.dataset.category)});
+ $('.btn-review').on('click',function(){$('#reviewId').val(this.dataset.id);$('#reviewTitle').text(this.dataset.title)});
+ $('.btn-ack').on('click',function(){$.post('index.php?page=documents_acknowledge',{requirement_id:this.dataset.id,csrf_token:'<?= $csrf; ?>'},r=>{showToast(r.status,r.message);if(r.status==='success')setTimeout(()=>location.reload(),600)},'json')});
+ $('.btn-correction').on('click',function(){const id=this.dataset.id;Swal.fire({title:'Request Correction',input:'textarea',inputLabel:'What should Admin/HR correct?',showCancelButton:true}).then(x=>{if(x.isConfirmed&&x.value)$.post('index.php?page=documents_request_correction',{id,remarks:x.value,csrf_token:'<?= $csrf; ?>'},r=>{showToast(r.status,r.message);if(r.status==='success')setTimeout(()=>location.reload(),600)},'json')})});
 });
-
-function viewDocModal(id, title, qr) {
-    Swal.fire({
-        title: title,
-        html: `
-            <div class="text-center p-3">
-                <div class="mb-3"><i class="fa-solid fa-file-pdf fs-1 text-danger"></i></div>
-                <p class="text-secondary">Document cryptographically verified with security stamp:</p>
-                <div class="p-2 bg-light rounded border font-monospace text-primary mb-3">${qr}</div>
-                <a class="btn btn-sm btn-primary" href="index.php?page=documents_download&amp;id=${encodeURIComponent(id)}"><i class="fa-solid fa-download me-1"></i> Download File</a>
-            </div>
-        `,
-        showConfirmButton: false,
-        showCloseButton: true
-    });
-}
 </script>
-
-<?php require APP_PATH . 'Views/layouts/footer.php'; ?>
+<?php require APP_PATH.'Views/layouts/footer.php'; ?>

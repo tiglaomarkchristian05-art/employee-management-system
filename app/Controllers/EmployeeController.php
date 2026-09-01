@@ -26,6 +26,13 @@ class EmployeeController extends Controller {
             $this->json('error', 'Invalid CSRF token.');
         }
 
+        $password = !empty($_POST['account_password'])
+            ? (string)$_POST['account_password']
+            : bin2hex(random_bytes(8));
+        if (strlen($password) < 8) {
+            $this->json('error', 'The employee account password must be at least 8 characters.');
+        }
+
         $employeeModel = new Employee();
         $code = 'EMP-' . date('Y') . '-' . str_pad(rand(100, 999), 3, '0', STR_PAD_LEFT);
         
@@ -87,8 +94,6 @@ class EmployeeController extends Controller {
 
         $userModel = new User();
         $username = !empty($_POST['account_username']) ? sanitize_input($_POST['account_username']) : (!empty($data['email']) ? strtolower($data['email']) : strtolower(str_replace(' ', '.', $data['first_name'] . '.' . $data['last_name'])));
-        $password = !empty($_POST['account_password']) ? $_POST['account_password'] : 'User@123';
-        
         $existing = $userModel->db->fetchOne("SELECT id FROM users WHERE username = ?", [$username]);
         if ($existing) {
             $username = strtolower($data['first_name'] . '.' . $data['last_name'] . rand(10, 99));

@@ -74,10 +74,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (window.Swal) {
                             Swal.fire({
                                 icon: 'success',
+                                iconHtml: '<i class="fa-solid fa-check" aria-hidden="true"></i>',
                                 title: 'Welcome Back!',
                                 text: res.message,
-                                timer: 1000,
-                                showConfirmButton: false
+                                timer: 1200,
+                                showConfirmButton: false,
+                                allowOutsideClick: false,
+                                customClass: {
+                                    popup: 'login-success-modal',
+                                    icon: 'login-success-icon',
+                                    title: 'login-success-title',
+                                    htmlContainer: 'login-success-message'
+                                }
                             }).then(() => {
                                 window.location.href = res.data.redirect;
                             });

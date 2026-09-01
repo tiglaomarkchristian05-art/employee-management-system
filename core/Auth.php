@@ -6,7 +6,7 @@ require_once __DIR__ . '/AuditLogger.php';
 class Auth {
     private static $permissions = [
         'Super Admin' => ['*'],
-        'HR Manager' => ['view_management_dashboard', 'manage_employees', 'manage_employee_accounts', 'manage_training', 'manage_documents', 'manage_compliance', 'manage_benefits', 'manage_loans', 'manage_separation', 'view_audit_logs'],
+        'HR Manager' => ['view_management_dashboard', 'manage_employees', 'manage_employee_accounts', 'manage_training', 'manage_documents', 'manage_compliance', 'manage_benefits', 'manage_loans', 'manage_separation', 'view_audit_logs', 'view_notifications'],
         'Department Head' => ['view_own_dashboard', 'view_own_training', 'enroll_training', 'view_own_documents', 'upload_own_documents', 'view_own_contributions', 'submit_claim', 'submit_loan', 'view_own_benefits', 'view_own_clearance', 'submit_separation', 'view_own_profile', 'view_notifications', 'approve_department_clearance'],
         'Employee' => ['view_own_dashboard', 'view_own_training', 'enroll_training', 'view_own_documents', 'upload_own_documents', 'view_own_contributions', 'submit_claim', 'submit_loan', 'view_own_benefits', 'view_own_clearance', 'submit_separation', 'view_own_profile', 'view_notifications'],
     ];

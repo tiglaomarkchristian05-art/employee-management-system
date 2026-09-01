@@ -353,9 +353,15 @@ CREATE TABLE IF NOT EXISTS `final_pays` (
 CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NULL,
+  `role_name` VARCHAR(100) NULL,
+  `employee_id` INT NULL,
   `action` VARCHAR(100) NOT NULL,
   `module` VARCHAR(100) NOT NULL,
+  `record_type` VARCHAR(100) NULL,
+  `record_id` INT NULL,
   `description` TEXT NULL,
+  `old_value` LONGTEXT NULL,
+  `new_value` LONGTEXT NULL,
   `ip_address` VARCHAR(45) NULL,
   `user_agent` VARCHAR(255) NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -508,8 +514,8 @@ INSERT INTO `benefit_claims` (`id`, `employee_id`, `benefit_id`, `claim_type`, `
 
 -- 20. Placement & Deployment Loans
 INSERT INTO `loans` (`id`, `employee_id`, `loan_type`, `principal_amount`, `interest_rate`, `term_months`, `monthly_deduction`, `total_payable`, `balance_remaining`, `status`) VALUES
-(1, 4, 'Emergency', 30000.00, 2.00, 12, 2550.00, 30600.00, 15300.00, 'Active'),
-(2, 3, 'Pag-IBIG', 50000.00, 5.95, 24, 2210.00, 53040.00, 35360.00, 'Active');
+(1, 4, 'Emergency', 30000.00, 2.00, 12, 2550.00, 30600.00, 22950.00, 'Active'),
+(2, 3, 'Pag-IBIG', 50000.00, 5.95, 24, 2210.00, 53040.00, 53040.00, 'Active');
 
 -- 21. Loan Payments
 INSERT INTO `loan_payments` (`id`, `loan_id`, `payment_date`, `amount`, `payment_method`, `reference_no`) VALUES
@@ -539,7 +545,7 @@ INSERT INTO `final_pays` (`id`, `separation_id`, `basic_pay_due`, `unused_leave_
 INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VALUES
 ('company_name', 'Moses Group of Companies', 'Registered company business name'),
 ('tax_year', '2026', 'Active fiscal tax year'),
-('currency_symbol', 'â‚±', 'Currency symbol for payroll and reports'),
+('currency_symbol', '₱', 'Currency symbol for payroll and reports'),
 ('theme_mode', 'light', 'Default UI theme mode (light)');
 
 -- ApexHR Enterprise HRMS Allowances & Reimbursements Schema Expansion
@@ -592,3 +598,50 @@ INSERT IGNORE INTO `allowances` (`id`, `name`, `type`, `amount`, `is_taxable`, `
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+
+-- Phase 15: explainable AI-based training recommendations and training-needs analysis.
+ALTER TABLE training_courses
+  ADD COLUMN IF NOT EXISTS target_department_id INT NULL AFTER requirements,
+  ADD COLUMN IF NOT EXISTS target_position_id INT NULL AFTER target_department_id,
+  ADD COLUMN IF NOT EXISTS required_skills TEXT NULL AFTER target_position_id,
+  ADD COLUMN IF NOT EXISTS prerequisite_course_id INT NULL AFTER required_skills,
+  ADD COLUMN IF NOT EXISTS difficulty_level ENUM('Beginner','Intermediate','Advanced') NOT NULL DEFAULT 'Intermediate' AFTER prerequisite_course_id,
+  ADD COLUMN IF NOT EXISTS certification_provided VARCHAR(150) NULL AFTER difficulty_level,
+  ADD COLUMN IF NOT EXISTS retraining_months INT NOT NULL DEFAULT 0 AFTER certification_provided,
+  ADD INDEX IF NOT EXISTS idx_training_target_department (target_department_id),
+  ADD INDEX IF NOT EXISTS idx_training_target_position (target_position_id),
+  ADD INDEX IF NOT EXISTS idx_training_prerequisite (prerequisite_course_id);
+
+ALTER TABLE training_registrations
+  ADD COLUMN IF NOT EXISTS completed_at DATE NULL AFTER result_notes,
+  ADD INDEX IF NOT EXISTS idx_training_history (employee_id,status,completed_at);
+
+UPDATE training_registrations r
+JOIN training_courses c ON c.id=r.course_id
+SET r.completed_at=COALESCE(c.end_date,DATE(r.updated_at))
+WHERE r.status='Completed' AND r.completed_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS ai_training_recommendations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id INT NOT NULL,
+  training_id INT NOT NULL,
+  recommendation_score DECIMAL(5,2) NOT NULL,
+  priority ENUM('High','Medium','Low') NOT NULL,
+  reason TEXT NOT NULL,
+  detected_gap VARCHAR(255) NOT NULL,
+  score_breakdown JSON NULL,
+  algorithm_version VARCHAR(50) NOT NULL DEFAULT 'content_similarity_v1',
+  status ENUM('Pending Review','Accepted','Dismissed','Assigned','Expired') NOT NULL DEFAULT 'Pending Review',
+  generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_by INT NULL,
+  reviewed_at DATETIME NULL,
+  dismissed_reason TEXT NULL,
+  assigned_registration_id INT NULL,
+  UNIQUE KEY uq_ai_employee_training (employee_id,training_id),
+  INDEX idx_ai_priority_status (priority,status),
+  INDEX idx_ai_generated (generated_at,id),
+  CONSTRAINT fk_ai_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ai_training FOREIGN KEY (training_id) REFERENCES training_courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ai_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ai_registration FOREIGN KEY (assigned_registration_id) REFERENCES training_registrations(id) ON DELETE SET NULL
+) ENGINE=InnoDB;

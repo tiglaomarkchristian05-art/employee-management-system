@@ -138,8 +138,8 @@ INSERT INTO `benefit_claims` (`id`, `employee_id`, `benefit_id`, `claim_type`, `
 
 -- 20. Placement & Deployment Loans
 INSERT INTO `loans` (`id`, `employee_id`, `loan_type`, `principal_amount`, `interest_rate`, `term_months`, `monthly_deduction`, `total_payable`, `balance_remaining`, `status`) VALUES
-(1, 4, 'Emergency', 30000.00, 2.00, 12, 2550.00, 30600.00, 15300.00, 'Active'),
-(2, 3, 'Pag-IBIG', 50000.00, 5.95, 24, 2210.00, 53040.00, 35360.00, 'Active');
+(1, 4, 'Emergency', 30000.00, 2.00, 12, 2550.00, 30600.00, 22950.00, 'Active'),
+(2, 3, 'Pag-IBIG', 50000.00, 5.95, 24, 2210.00, 53040.00, 53040.00, 'Active');
 
 -- 21. Loan Payments
 INSERT INTO `loan_payments` (`id`, `loan_id`, `payment_date`, `amount`, `payment_method`, `reference_no`) VALUES

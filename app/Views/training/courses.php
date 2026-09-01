@@ -1,76 +1,9 @@
-<?php
-require APP_PATH . 'Views/layouts/header.php';
-require APP_PATH . 'Views/layouts/sidebar.php';
-?>
-
-<div id="main-content">
-    <?php require APP_PATH . 'Views/layouts/navbar.php'; ?>
-
-    <div class="d-flex align-items-center justify-content-between my-3">
-        <div>
-            <a href="index.php?page=training" class="btn btn-sm btn-outline-secondary mb-2"><i class="fa-solid fa-arrow-left me-1"></i> Back to LMS Dashboard</a>
-            <h4 class="fw-bold text-light mb-1"><i class="fa-solid fa-book-open text-info me-2"></i> Course Catalog & Library</h4>
-            <p class="text-secondary mb-0">Browse mandatory compliance, technical engineering, and executive leadership trainings</p>
-        </div>
-    </div>
-
-    <div class="glass-card p-4 mb-4">
-        <div class="table-responsive">
-            <table class="table align-middle datatable-init">
-                <thead>
-                    <tr>
-                        <th>Course Title</th>
-                        <th>Category</th>
-                        <th>Type</th>
-                        <th>Duration</th>
-                        <th>Venue / Platform</th>
-                        <th>Trainer</th>
-                        <th>Budget</th>
-                        <th>Schedule</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($courses as $c): ?>
-                    <tr>
-                        <td class="fw-bold text-light"><?= htmlspecialchars($c['title']); ?></td>
-                        <td><span class="badge bg-secondary"><?= htmlspecialchars($c['category_name'] ?? 'General'); ?></span></td>
-                        <td><span class="badge badge-soft-info"><?= $c['course_type']; ?></span></td>
-                        <td><?= $c['duration_hours']; ?> hrs</td>
-                        <td><?= htmlspecialchars($c['venue']); ?></td>
-                        <td><?= htmlspecialchars($c['trainer_name'] ?? 'Internal HR'); ?></td>
-                        <td class="fw-bold text-success">₱<?= number_format($c['budget'], 2); ?></td>
-                        <td><?= $c['start_date']; ?> to <?= $c['end_date']; ?></td>
-                        <td>
-                            <?php if (Auth::isSelfService()): ?><button class="btn btn-sm btn-info fw-bold btn-register-course" data-id="<?= $c['id']; ?>">
-                                Register
-                            </button><?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
+<?php require APP_PATH . 'Views/layouts/header.php'; require APP_PATH . 'Views/layouts/sidebar.php'; $isAdmin=Auth::isAdmin();$csrf=csrf_token(); ?>
+<div id="main-content"><?php require APP_PATH . 'Views/layouts/navbar.php'; ?>
+ <div class="d-flex align-items-center justify-content-between my-3 flex-wrap gap-2"><div><a href="index.php?page=training" class="btn btn-outline-secondary btn-sm mb-2"><i class="fa-solid fa-arrow-left"></i>Back to Training</a><h4><i class="fa-solid fa-book-open"></i>Training Course Library</h4><p class="text-secondary mb-0"><?= $isAdmin?'Complete training catalogue and scheduling register':'Browse available training programs and monitor enrollment availability'; ?></p></div><?php if($isAdmin): ?><a href="index.php?page=training" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i>Create or Manage Training</a><?php endif; ?></div>
+ <div class="glass-card p-4 mb-4"><div class="table-responsive"><table class="table align-middle datatable-init"><thead><tr><th>Training</th><th>Category / Type</th><th>Schedule</th><th>Trainer / Venue</th><th>Status</th><th>Capacity</th><th>Actions</th></tr></thead><tbody>
+ <?php foreach($courses as $course): $registered=!$isAdmin&&!empty($course['registration_id']);$full=(int)$course['enrolled_count']>=max(1,(int)$course['capacity']); ?><tr><td><strong><?= htmlspecialchars($course['title']); ?></strong><small class="d-block text-secondary"><?= htmlspecialchars($course['description']); ?></small></td><td><?= htmlspecialchars($course['category_name']??'General'); ?><small class="d-block text-secondary"><?= htmlspecialchars($course['course_type']); ?></small></td><td><?= date('M j, Y',strtotime($course['start_date'])); ?><small class="d-block text-secondary">to <?= date('M j, Y',strtotime($course['end_date'])); ?></small></td><td><?= htmlspecialchars($course['trainer_name']??'Internal HR'); ?><small class="d-block text-secondary"><?= htmlspecialchars($course['venue']); ?></small></td><td><span class="badge badge-soft-primary"><?= htmlspecialchars($course['status']); ?></span></td><td><?= (int)$course['enrolled_count']; ?> / <?= (int)$course['capacity']; ?></td><td><div class="table-action-group"><a class="btn btn-outline-primary btn-sm" href="index.php?page=training_details&amp;id=<?= (int)$course['id']; ?>">Details</a><?php if(!$isAdmin&&!$registered): ?><button class="btn btn-primary btn-sm btn-apply" data-id="<?= (int)$course['id']; ?>" <?= $full?'disabled':''; ?>><?= $full?'Full':'Apply'; ?></button><?php elseif($registered): ?><span class="badge badge-soft-info"><?= htmlspecialchars($course['participation_status']); ?></span><?php endif; ?></div></td></tr><?php endforeach; ?>
+ </tbody></table></div></div>
 </div>
-
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script>
-$('.btn-register-course').on('click', function() {
-    const courseId = $(this).data('id');
-    confirmAction('Register for Course', 'Do you want to enroll in this course?', 'Enroll', function() {
-        $.post('index.php?page=training_register', {
-            course_id: courseId,
-            csrf_token: '<?= generate_csrf_token(); ?>'
-        }, function(res) {
-            if (res.status === 'success') {
-                showToast('success', res.message);
-            } else {
-                Swal.fire('Notice', res.message, res.status);
-            }
-        }, 'json');
-    });
-});
-</script>
-
+<?php if(!$isAdmin): ?><script>$(function(){$('.btn-apply').on('click',function(){const id=$(this).data('id');confirmAction('Apply for Training','Submit your application for Admin/HR review?','Apply',function(){$.post('index.php?page=training_register',{course_id:id,csrf_token:<?= json_encode($csrf); ?>},function(res){if(res.status==='success'){showToast('success',res.message);setTimeout(()=>location.reload(),800)}else Swal.fire('Notice',res.message,res.status==='warning'?'warning':'error')},'json')})})});</script><?php endif; ?>
 <?php require APP_PATH . 'Views/layouts/footer.php'; ?>

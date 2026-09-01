@@ -1,5 +1,9 @@
 <?php
 $user = Auth::user();
+require_once APP_PATH . 'Models/Notification.php';
+$navbarNotificationModel = new Notification();
+$navbarUnreadCount = $navbarNotificationModel->unreadCount($user['id']);
+$navbarNotifications = $navbarNotificationModel->getForUser($user['id'], 5);
 ?>
 <nav id="navbar" class="dashboard-topbar">
     <div class="header-leading topbar-start">
@@ -16,21 +20,30 @@ $user = Auth::user();
             <input type="text" class="navbar-search-input" placeholder="Search...">
         </div>
 
-        <div class="dropdown d-none">
+        <div class="dropdown">
             <button class="btn btn-sm border-0 rounded-circle position-relative" style="width:38px; height:38px; background-color: #F1F0F7;" data-bs-toggle="dropdown">
                 <i class="fa-solid fa-bell text-secondary"></i>
-                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle"></span>
+                <?php if($navbarUnreadCount>0): ?><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= $navbarUnreadCount>99?'99+':$navbarUnreadCount; ?></span><?php endif; ?>
             </button>
-            <div class="dropdown-menu dropdown-menu-end glass-card p-3 shadow-lg" style="width: 320px;">
-                <h6 class="fw-bold mb-3" style="color: var(--primary);"><i class="fa-solid fa-bell me-2"></i> System Alerts</h6>
-                <div class="d-flex flex-column gap-2" style="font-size:0.85rem;">
-                    <div class="p-2 rounded bg-light border">
-                        <i class="fa-solid fa-file-contract text-warning me-1"></i> Contract expiry notice: 2 contracts due in 30 days.
-                    </div>
-                    <div class="p-2 rounded bg-light border">
-                        <i class="fa-solid fa-graduation-cap text-info me-1"></i> New LMS course available: Cybersecurity 2026.
-                    </div>
+            <div class="dropdown-menu dropdown-menu-end notification-popover shadow-lg">
+                <div class="notification-popover-header">
+                    <div><span class="notification-heading-icon"><i class="fa-solid fa-bell"></i></span><div><h6>Notifications</h6><small><?= $navbarUnreadCount ? $navbarUnreadCount.' unread update'.($navbarUnreadCount===1?'':'s') : 'You are all caught up'; ?></small></div></div>
+                    <a href="index.php?page=notifications">View all</a>
                 </div>
+                <div class="notification-popover-list">
+                    <?php if(!$navbarNotifications): ?><div class="notification-empty"><span><i class="fa-regular fa-bell"></i></span><strong>No notifications yet</strong><small>Workflow updates will appear here.</small></div><?php else: foreach($navbarNotifications as $note):
+                        $noteModule=strtolower((string)($note['module']??'system'));
+                        $noteIcons=['training'=>'fa-graduation-cap','documents'=>'fa-folder-open','compliance'=>'fa-landmark','benefits'=>'fa-hand-holding-heart','loans'=>'fa-wallet','separation'=>'fa-user-check','system'=>'fa-bell'];
+                        $noteIcon=$noteIcons[$noteModule]??'fa-bell';
+                        $noteTone=in_array(($note['type']??'info'),['success','warning','error','info'],true)?$note['type']:'info';
+                    ?>
+                    <a class="notification-popover-item tone-<?= htmlspecialchars($noteTone); ?> <?= empty($note['is_read'])?'is-unread':'is-read'; ?>" href="index.php?page=notification_open&amp;id=<?= (int)$note['id']; ?>">
+                        <span class="notification-item-icon"><i class="fa-solid <?= $noteIcon; ?>"></i></span>
+                        <span class="notification-item-copy"><span class="notification-item-top"><strong><?= htmlspecialchars($note['title']); ?></strong><?php if(empty($note['is_read'])): ?><i class="notification-unread-dot" aria-label="Unread"></i><?php endif; ?></span><small><?= htmlspecialchars($note['message']); ?></small><span class="notification-item-meta"><span><?= htmlspecialchars(ucfirst($noteModule)); ?></span><time><?= !empty($note['created_at'])?date('M j · g:i A',strtotime($note['created_at'])):''; ?></time></span></span>
+                    </a>
+                    <?php endforeach; endif; ?>
+                </div>
+                <?php if($navbarNotifications): ?><a class="notification-popover-footer" href="index.php?page=notifications"><span>Open notification center</span><i class="fa-solid fa-arrow-right"></i></a><?php endif; ?>
             </div>
         </div>
 

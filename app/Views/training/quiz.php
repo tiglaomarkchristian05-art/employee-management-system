@@ -9,7 +9,7 @@ require APP_PATH . 'Views/layouts/sidebar.php';
     <div class="my-3">
         <a href="index.php?page=training" class="btn btn-sm btn-outline-secondary mb-2"><i class="fa-solid fa-arrow-left me-1"></i> Back to LMS</a>
         <h4 class="fw-bold mb-1" style="color: var(--text);"><i class="fa-solid fa-pen-to-square me-2" style="color: var(--warning);"></i> Quiz Assessment: <?= htmlspecialchars($course['title']); ?></h4>
-        <p class="text-secondary">Please complete all assessment questions below to submit your evaluation and claim your certificate of completion.</p>
+        <p class="text-secondary">Complete all assessment questions. Admin/HR will review attendance and publish your official result.</p>
     </div>
 
     <div class="glass-card p-4 max-w-700 mx-auto mb-4">
@@ -40,7 +40,7 @@ require APP_PATH . 'Views/layouts/sidebar.php';
             </div>
             <?php endforeach; ?>
 
-            <button type="submit" class="btn btn-warning text-white btn-lg w-100 fw-bold shadow-sm"><i class="fa-solid fa-paper-plane me-2"></i> Submit Assessment & Issue Certificate</button>
+            <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm"><i class="fa-solid fa-paper-plane me-2"></i> Submit Assessment</button>
         </form>
     </div>
 </div>
@@ -58,9 +58,9 @@ $('#quizForm').on('submit', function(e) {
             if (res.status === 'success') {
                 Swal.fire({
                     icon: 'success',
-                    title: 'Assessment Passed!',
+                    title: 'Assessment Submitted',
                     text: res.message,
-                    confirmButtonText: 'View Certificate'
+                    confirmButtonText: 'Return to Training'
                 }).then(() => {
                     window.location.href = 'index.php?page=training';
                 });

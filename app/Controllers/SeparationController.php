@@ -1,147 +1,23 @@
 <?php
-
-require_once ROOT_PATH . 'core/Controller.php';
-require_once APP_PATH . 'Models/Separation.php';
-require_once APP_PATH . 'Models/Employee.php';
-
+require_once ROOT_PATH.'core/Controller.php';require_once APP_PATH.'Models/Separation.php';require_once APP_PATH.'Models/Employee.php';require_once APP_PATH.'Models/Notification.php';
 class SeparationController extends Controller {
-    public function index() {
-        Auth::requireAuth();
-
-        $separationModel = new Separation();
-        $employeeModel = new Employee();
-        $isAdmin = Auth::isAdmin();
-        $employeeId = $isAdmin ? null : Auth::employeeId();
-
-        $data = [
-            'separations' => $separationModel->getSeparationsWithDetails($employeeId),
-            'employees'   => $isAdmin ? $employeeModel->getAllWithDetails() : []
-        ];
-
-        $this->view('separation/index', $data);
-    }
-
-    public function clearance() {
-        Auth::requireAuth();
-        $separationId = intval($_GET['id'] ?? 1);
-
-        $separationModel = new Separation();
-        $sep = $separationModel->db->fetchOne("SELECT s.*, e.first_name, e.last_name, e.employee_code, e.hire_date, d.name as department_name, p.title as position_title FROM separations s JOIN employees e ON s.employee_id = e.id LEFT JOIN departments d ON e.department_id = d.id LEFT JOIN positions p ON e.position_id = p.id WHERE s.id = ?", [$separationId]);
-
-        if (!$sep) {
-            die("Separation record not found.");
-        }
-        if (Auth::isEmployee() && intval($sep['employee_id']) !== Auth::employeeId()) Auth::deny();
-
-        $data = [
-            'separation' => $sep,
-            'clearances' => $separationModel->getClearanceStatus($separationId),
-            'assets'     => $separationModel->getAssetReturns($separationId),
-            'final_pay'  => $separationModel->getFinalPay($separationId)
-        ];
-
-        $this->view('separation/clearance', $data);
-    }
-
-    public function coe() {
-        Auth::requireAuth();
-        $separationId = intval($_GET['id'] ?? 1);
-
-        $separationModel = new Separation();
-        $sep = $separationModel->db->fetchOne("SELECT s.*, e.first_name, e.last_name, e.employee_code, e.hire_date, e.basic_salary, d.name as department_name, p.title as position_title FROM separations s JOIN employees e ON s.employee_id = e.id LEFT JOIN departments d ON e.department_id = d.id LEFT JOIN positions p ON e.position_id = p.id WHERE s.id = ?", [$separationId]);
-        if (!$sep) Auth::deny('Separation record not found.');
-        if (Auth::isEmployee() && intval($sep['employee_id']) !== Auth::employeeId()) Auth::deny();
-
-        $data = [
-            'separation' => $sep
-        ];
-
-        $this->view('separation/coe', $data);
-    }
-
-    public function initiate() {
-        Auth::requireRole(['Super Admin', 'HR Manager', 'Department Head', 'Employee']);
-        Auth::requireMethod('POST');
-        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
-            $this->json('error', 'Invalid CSRF token.');
-        }
-
-        $user = Auth::user();
-        $empId = Auth::isAdmin() ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
-        if ($empId <= 0) $this->json('error', 'A valid employee is required.');
-        $type = sanitize_input($_POST['separation_type'] ?? 'Resignation');
-        $notice = $_POST['notice_date'] ?? date('Y-m-d');
-        $effective = $_POST['effective_date'] ?? date('Y-m-d', strtotime('+30 days'));
-        $reason = sanitize_input($_POST['reason'] ?? '');
-
-        $separationModel = new Separation();
-        $sepId = $separationModel->create([
-            'employee_id'     => $empId,
-            'separation_type' => $type,
-            'notice_date'     => $notice,
-            'effective_date'  => $effective,
-            'reason'          => $reason,
-            'status'          => 'Pending Clearance'
-        ]);
-
-        // Auto-generate 5 Department Clearances
-        $departments = ['HR', 'Finance', 'IT', 'Security', 'Manager'];
-        foreach ($departments as $dept) {
-            $separationModel->db->insert('clearances', [
-                'separation_id'   => $sepId,
-                'department_name' => $dept,
-                'status'          => 'Pending'
-            ]);
-        }
-
-        // Auto-generate Asset Returns
-        $separationModel->db->insert('asset_returns', [
-            'separation_id' => $sepId,
-            'item_name'     => 'Company ID & RFID Pass',
-            'returned'      => 0
-        ]);
-
-        // Auto-generate Draft Final Pay
-        $separationModel->db->insert('final_pays', [
-            'separation_id'             => $sepId,
-            'basic_pay_due'             => 25000.00,
-            'unused_leave_encashment'   => 5000.00,
-            'thirteenth_month_prorated' => 15000.00,
-            'loan_deductions'           => 0.00,
-            'net_final_pay'             => 45000.00,
-            'status'                    => 'Draft'
-        ]);
-
-        AuditLogger::log('INITIATE_EXIT', 'Separation Management', "Initiated exit clearance for Employee ID {$empId}");
-        $this->json('success', 'Separation workflow initiated. Department clearance routing active.');
-    }
-
-    public function updateClearance() {
-        Auth::requireRole(['Super Admin', 'HR Manager', 'Department Head']);
-        Auth::requireMethod('POST');
-        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
-            $this->json('error', 'Invalid CSRF token.');
-        }
-
-        $clearanceId = intval($_POST['clearance_id'] ?? 0);
-        $status = sanitize_input($_POST['status'] ?? 'Cleared');
-        $comments = sanitize_input($_POST['comments'] ?? 'Approved');
-        $user = Auth::user();
-
-        $separationModel = new Separation();
-        $clearance = $separationModel->db->fetchOne("SELECT id, department_name FROM clearances WHERE id = ?", [$clearanceId]);
-        if (!$clearance) $this->json('error', 'Clearance record not found.', [], 404);
-        if (Auth::hasRole(['Department Head']) && !Auth::isAdmin() && $clearance['department_name'] !== 'Manager') {
-            Auth::deny('Department Heads may only approve the Manager clearance stage.');
-        }
-        $separationModel->db->update('clearances', [
-            'status'         => $status,
-            'cleared_by'     => $user['full_name'],
-            'clearance_date' => date('Y-m-d H:i:s'),
-            'comments'       => $comments
-        ], "id = ?", [$clearanceId]);
-
-        AuditLogger::log('CLEARANCE_UPDATE', 'Separation Management', "Updated clearance ID {$clearanceId} status to {$status}");
-        $this->json('success', 'Department clearance status updated!');
-    }
+ private $model;private $notes;
+ public function __construct(){$this->model=new Separation();$this->notes=new Notification();}
+ public function index(){Auth::requireAuth();$admin=Auth::isAdmin();$this->view('separation/index',['is_admin'=>$admin,'separations'=>$this->model->getSeparationsWithDetails($admin?null:Auth::employeeId()),'employees'=>$admin?(new Employee())->getAllWithDetails():[]]);}
+ public function clearance(){Auth::requireAuth();$sep=$this->owned((int)($_GET['id']??0));$this->view('separation/clearance',['is_admin'=>Auth::isAdmin(),'separation'=>$sep,'clearances'=>$this->model->getClearanceStatus($sep['id']),'assets'=>$this->model->getAssetReturns($sep['id']),'final_pay'=>$this->model->getFinalPay($sep['id']),'exit_interview'=>$this->model->getExitInterview($sep['id'])]);}
+ public function coe(){Auth::requireAuth();$sep=$this->owned((int)($_GET['id']??0));if($sep['status']!=='Completed')Auth::deny('Certificate is available after separation completion.');$this->view('separation/coe',['separation'=>$sep]);}
+ public function initiate(){$this->employeePost();$employee=Auth::employeeId();$type=sanitize_input($_POST['separation_type']??'');if(!in_array($type,['Resignation','End of Contract','Retirement','Termination','Other'],true))$this->json('error','Invalid separation type.',[],422);$reason=trim($_POST['reason']??'');$remarks=trim($_POST['employee_remarks']??'');$date=$_POST['proposed_last_working_date']??'';if($reason===''||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)||$date<date('Y-m-d'))$this->json('error','Reason and a valid proposed last working date are required.',[],422);if(mb_strlen($remarks)>2000)$this->json('error','Remarks must not exceed 2,000 characters.',[],422);$file=null;try{[$file,$original]=$this->upload('resignation_letter','separations',true);$id=$this->model->submitRequest($employee,$type,$reason,$remarks,$date,$file,$original);$this->notes->createForAdmins('New separation request','Employee ID '.$employee.' submitted a '.$type.' request.','warning','index.php?page=separation_clearance&id='.$id,'separation',$id);AuditLogger::log('SUBMIT_SEPARATION','Separation Management','Submitted separation ID '.$id,null,['record_type'=>'separation','record_id'=>$id,'new_value'=>['separation_type'=>$type,'proposed_last_working_date'=>$date,'reason'=>$reason,'employee_remarks'=>$remarks?:null]]);$this->json('success','Separation request submitted.',['id'=>$id]);}catch(Throwable $e){$this->remove($file);$this->json('error',$e->getMessage(),[],422);}}
+ public function review(){$this->adminPost();$id=(int)($_POST['id']??0);$to=sanitize_input($_POST['status']??'');$sep=$this->model->details($id);if(!$sep)$this->json('error','Separation request not found.',[],404);$allowed=['Submitted'=>['Under Review','Approved','Rejected','Cancelled'],'Under Review'=>['Approved','Rejected','Cancelled'],'Approved'=>['Processing','Cancelled'],'Processing'=>['Clearance Ongoing']];if(!in_array($to,$allowed[$sep['status']]??[],true))$this->json('error','Invalid separation status transition.',[],422);$remarks=trim($_POST['admin_remarks']??'');if($to==='Rejected'&&$remarks==='')$this->json('error','Rejection remarks are required.',[],422);$data=['status'=>$to,'admin_remarks'=>$remarks,'reviewed_by'=>Auth::user()['id'],'reviewed_at'=>date('Y-m-d H:i:s')];if($to==='Approved'){$date=$_POST['final_working_date']??'';if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))$this->json('error','Final working date is required.',[],422);$data['final_working_date']=$date;$data['effective_date']=$date;}$this->model->update($id,$data);$this->notify($sep,'Separation '.$to,'Your separation request is now '.$to.'.'.($remarks?' Remarks: '.$remarks:''),in_array($to,['Rejected','Cancelled'],true)?'warning':'info');AuditLogger::log('SEPARATION_'.strtoupper(str_replace(' ','_',$to)),'Separation Management','Separation ID '.$id.' changed from '.$sep['status'].' to '.$to,null,['record_type'=>'separation','record_id'=>$id,'old_value'=>['status'=>$sep['status']],'new_value'=>['status'=>$to,'final_working_date'=>$data['final_working_date']??null,'remarks'=>$remarks]]);$this->json('success','Request marked '.$to.'.');}
+ public function generateClearance(){$this->adminPost();$id=(int)($_POST['id']??0);try{$count=$this->model->createClearance($id);$sep=$this->model->details($id);$this->notify($sep,'Exit clearance started','Your '.$count.'-department clearance checklist is now active.','info');$this->notes->createForAdmins('Pending exit clearance','Separation ID '.$id.' has '.$count.' pending department clearance items.','warning','index.php?page=separation_clearance&id='.$id,'separation',$id);AuditLogger::log('CREATE_EXIT_CLEARANCE','Separation Management','Generated '.$count.' clearance items for separation ID '.$id);$this->json('success','Exit clearance generated from configured departments.');}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}}
+ public function updateClearance(){$this->adminPost();$id=(int)($_POST['clearance_id']??0);$status=sanitize_input($_POST['status']??'');if(!in_array($status,['Pending','Cleared','With Accountability'],true))$this->json('error','Invalid clearance status.',[],422);$c=$this->model->getClearance($id);if(!$c)$this->json('error','Clearance item not found.',[],404);$account=trim($_POST['accountability_details']??'');if($status==='With Accountability'&&$account==='')$this->json('error','Accountability details are required.',[],422);$this->model->db->update('clearances',['status'=>$status,'accountability_details'=>$account,'comments'=>trim($_POST['comments']??''),'cleared_by'=>Auth::user()['full_name'],'verified_by_user_id'=>Auth::user()['id'],'clearance_date'=>$status==='Cleared'?date('Y-m-d H:i:s'):null],'id=?',[$id]);$sep=$this->model->details($c['separation_id']);$this->notify($sep,'Clearance updated',$c['department_name'].' clearance is now '.$status.'.',$status==='Cleared'?'success':'warning');AuditLogger::log('CLEARANCE_UPDATE','Separation Management','Clearance ID '.$id.' set to '.$status);$this->json('success','Department clearance updated.');}
+ public function uploadClearanceDocument(){$this->employeePost();$id=(int)($_POST['clearance_id']??0);$c=$this->model->getClearance($id);if(!$c)$this->json('error','Clearance item not found.',[],404);Auth::requireOwnership($c['employee_id']);try{[$file,$name]=$this->upload('clearance_document','clearance',true);$this->model->db->update('clearances',['required_document_file'=>$file,'required_document_original_name'=>$name,'document_uploaded_at'=>date('Y-m-d H:i:s')],'id=?',[$id]);AuditLogger::log('UPLOAD_CLEARANCE_DOCUMENT','Separation Management','Uploaded document for clearance ID '.$id);$this->json('success','Clearance document uploaded.');}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}}
+ public function saveAsset(){$this->adminPost();$id=(int)($_POST['id']??0);$sep=(int)($_POST['separation_id']??0);$data=['item_name'=>sanitize_input($_POST['item_name']??''),'serial_no'=>sanitize_input($_POST['serial_no']??''),'condition_status'=>sanitize_input($_POST['condition_status']??'Good'),'returned'=>isset($_POST['returned'])?1:0,'remarks'=>trim($_POST['remarks']??''),'verified_by'=>Auth::user()['full_name'],'verified_by_user_id'=>Auth::user()['id'],'returned_at'=>isset($_POST['returned'])?date('Y-m-d H:i:s'):null];if($data['item_name']==='')$this->json('error','Asset or accountability name is required.',[],422);if($id)$this->model->db->update('asset_returns',$data,'id=?',[$id]);else{$data['separation_id']=$sep;$id=$this->model->db->insert('asset_returns',$data);}AuditLogger::log('UPDATE_ACCOUNTABILITY','Separation Management','Accountability ID '.$id.' updated');$this->json('success','Accountability saved.');}
+ public function saveInterview(){$this->adminPost();$id=(int)($_POST['separation_id']??0);$data=['reason_category'=>sanitize_input($_POST['reason_category']??'Other'),'feedback'=>trim($_POST['feedback']??''),'rehire_recommendation'=>sanitize_input($_POST['rehire_recommendation']??'Conditional'),'conducted_at'=>date('Y-m-d H:i:s'),'recorded_by'=>Auth::user()['id'],'admin_remarks'=>trim($_POST['admin_remarks']??'')];$old=$this->model->getExitInterview($id);if($old)$this->model->db->update('exit_interviews',$data,'separation_id=?',[$id]);else{$data['separation_id']=$id;$this->model->db->insert('exit_interviews',$data);}AuditLogger::log('RECORD_EXIT_INTERVIEW','Separation Management','Exit interview saved for separation ID '.$id);$this->json('success','Exit interview recorded.');}
+ public function complete(){$this->adminPost();$id=(int)($_POST['id']??0);try{$sep=$this->model->complete($id,Auth::user()['id']);$this->notify($sep,'Separation completed','Final HR clearance is complete. Your final clearance is available.','success');AuditLogger::log('FINAL_HR_CLEARANCE','Separation Management','Completed separation ID '.$id,null,['record_type'=>'separation','record_id'=>$id,'old_value'=>['status'=>$sep['status']],'new_value'=>['status'=>'Completed']]);$this->json('success','Final HR clearance completed.');}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}}
+ public function archive(){$this->adminPost();$id=(int)($_POST['id']??0);$sep=$this->model->details($id);if(!$sep||$sep['status']!=='Completed')$this->json('error','Only completed separations may be archived.',[],422);$this->model->update($id,['archived_at'=>date('Y-m-d H:i:s')]);AuditLogger::log('ARCHIVE_SEPARATION','Separation Management','Archived separation ID '.$id);$this->json('success','Separation archived.');}
+ public function finalClearance(){Auth::requireAuth();$sep=$this->owned((int)($_GET['id']??0));if($sep['status']!=='Completed')Auth::deny('Final clearance is available after completion.');$items=$this->model->getClearanceStatus($sep['id']);header('Content-Type:text/html; charset=UTF-8');header('Content-Disposition:attachment; filename="final-clearance-'.$sep['employee_code'].'.html"');echo '<h1>Final Exit Clearance</h1><p>Employee: '.htmlspecialchars($sep['first_name'].' '.$sep['last_name']).'</p><p>Final working date: '.htmlspecialchars($sep['final_working_date']).'</p><ul>';foreach($items as $c)echo '<li>'.htmlspecialchars($c['department_name']).': '.htmlspecialchars($c['status']).'</li>';echo '</ul><p>Completed: '.htmlspecialchars($sep['completed_at']).'</p>';exit;}
+ public function downloadFile(){Auth::requireAuth();$kind=$_GET['kind']??'resignation';if($kind==='clearance'){$c=$this->model->getClearance((int)($_GET['id']??0));if(!$c)Auth::deny();Auth::requireOwnership($c['employee_id']);$path=$c['required_document_file'];$name=$c['required_document_original_name'];}else{$s=$this->owned((int)($_GET['id']??0));$path=$s['resignation_file'];$name=$s['resignation_original_name'];}$this->sendFile($path,$name);}
+ private function owned($id){$s=$this->model->details($id,Auth::isAdmin()?null:Auth::employeeId());if(!$s){http_response_code(404);exit('Separation record not found.');}return $s;}private function notify($s,$title,$message,$type){$this->notes->createForEmployee($s['employee_id'],$title,$message,$type,'index.php?page=separation_clearance&id='.$s['id']);}
+ private function upload($field,$dir,$required){if(!isset($_FILES[$field])||$_FILES[$field]['error']===UPLOAD_ERR_NO_FILE){if($required)throw new RuntimeException('Required PDF/JPG/PNG file is missing.');return [null,null];}$f=$_FILES[$field];if($f['error']!==UPLOAD_ERR_OK||$f['size']<1||$f['size']>5242880)throw new RuntimeException('File must be 5 MB or less.');$ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));$mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);$map=['pdf'=>'application/pdf','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png'];if(!isset($map[$ext])||$map[$ext]!==$mime)throw new RuntimeException('Only valid PDF, JPG, or PNG files are accepted.');$root=ROOT_PATH.'public/uploads/'.$dir.'/';if(!is_dir($root)&&!mkdir($root,0755,true))throw new RuntimeException('Unable to prepare upload directory.');$name=bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($f['tmp_name'],$root.$name))throw new RuntimeException('Unable to store file.');return ['uploads/'.$dir.'/'.$name,preg_replace('/[^A-Za-z0-9._-]+/','-',basename($f['name']))];}
+ private function sendFile($stored,$name){if(!$stored){http_response_code(404);exit('File not found.');}$root=realpath(ROOT_PATH.'public/uploads');$path=realpath(ROOT_PATH.'public/'.ltrim(str_replace(chr(92),'/',$stored),'/'));if(!$root||!$path||!is_file($path)||strpos($path,$root.DIRECTORY_SEPARATOR)!==0){http_response_code(404);exit('File not found.');}header('Content-Type:'.(mime_content_type($path)?:'application/octet-stream'));header('Content-Disposition:attachment; filename="'.basename($name?:$path).'"');readfile($path);exit;}private function remove($path){if($path&&is_file(ROOT_PATH.'public/'.$path))unlink(ROOT_PATH.'public/'.$path);}private function adminPost(){Auth::requirePermission('manage_separation');Auth::requireMethod('POST');$this->csrf();}private function employeePost(){Auth::requirePermission('submit_separation');Auth::requireMethod('POST');$this->csrf();}private function csrf(){if(!verify_csrf_token($_POST['csrf_token']??''))$this->json('error','Invalid CSRF token.',[],403);}
 }

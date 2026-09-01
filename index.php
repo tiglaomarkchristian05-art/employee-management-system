@@ -14,12 +14,15 @@ require_once APP_PATH . 'Controllers/AuthController.php';
 require_once APP_PATH . 'Controllers/DashboardController.php';
 require_once APP_PATH . 'Controllers/EmployeeController.php';
 require_once APP_PATH . 'Controllers/TrainingController.php';
+require_once APP_PATH . 'Controllers/TrainingRecommendationController.php';
 require_once APP_PATH . 'Controllers/DocumentController.php';
 require_once APP_PATH . 'Controllers/ComplianceController.php';
 require_once APP_PATH . 'Controllers/BenefitsController.php';
+require_once APP_PATH . 'Controllers/LoansController.php';
 require_once APP_PATH . 'Controllers/SeparationController.php';
 require_once APP_PATH . 'Controllers/AdminController.php';
 require_once APP_PATH . 'Controllers/AccountController.php';
+require_once APP_PATH . 'Controllers/ReportController.php';
 
 $page = $_GET['page'] ?? (Auth::check() ? 'dashboard' : 'login');
 
@@ -39,12 +42,75 @@ switch ($page) {
     case 'notifications':
         (new AccountController())->notifications();
         break;
+    case 'notification_open':
+        (new AccountController())->openNotification();
+        break;
+    case 'notifications_mark_all':
+        (new AccountController())->markAllNotificationsRead();
+        break;
+    case 'reports':
+        (new ReportController())->index();
+        break;
+    case 'reports_export':
+        (new ReportController())->export();
+        break;
 
     case 'training':
         (new TrainingController())->dashboard();
         break;
+    case 'training_recommendations':
+        (new TrainingRecommendationController())->index();
+        break;
+    case 'training_recommendations_analyze':
+        (new TrainingRecommendationController())->analyze();
+        break;
+    case 'training_recommendations_review':
+        (new TrainingRecommendationController())->review();
+        break;
+    case 'training_recommendations_assign':
+        (new TrainingRecommendationController())->assign();
+        break;
+    case 'training_recommendations_export':
+        (new TrainingRecommendationController())->export();
+        break;
+    case 'training_history_store':
+        (new TrainingRecommendationController())->saveHistorical();
+        break;
     case 'training_courses':
         (new TrainingController())->courses();
+        break;
+    case 'training_details':
+        (new TrainingController())->details();
+        break;
+    case 'training_store':
+        (new TrainingController())->store();
+        break;
+    case 'training_update':
+        (new TrainingController())->update();
+        break;
+    case 'training_cancel':
+        (new TrainingController())->cancel();
+        break;
+    case 'training_remind':
+        (new TrainingController())->remind();
+        break;
+    case 'training_assign':
+        (new TrainingController())->assign();
+        break;
+    case 'training_confirm':
+        (new TrainingController())->confirm();
+        break;
+    case 'training_update_participant':
+        (new TrainingController())->updateParticipant();
+        break;
+    case 'training_upload_requirement':
+        (new TrainingController())->uploadRequirement();
+        break;
+    case 'training_material':
+        (new TrainingController())->downloadMaterial();
+        break;
+    case 'training_requirement':
+        (new TrainingController())->downloadRequirement();
         break;
     case 'training_matrix':
         (new TrainingController())->matrix();
@@ -77,6 +143,33 @@ switch ($page) {
     case 'documents_download':
         (new DocumentController())->download();
         break;
+    case 'documents_type_store':
+        (new DocumentController())->storeType();
+        break;
+    case 'documents_requirement_assign':
+        (new DocumentController())->assignRequirement();
+        break;
+    case 'documents_review':
+        (new DocumentController())->review();
+        break;
+    case 'documents_acknowledge':
+        (new DocumentController())->acknowledge();
+        break;
+    case 'documents_request_correction':
+        (new DocumentController())->requestCorrection();
+        break;
+    case 'contracts_store':
+        (new DocumentController())->storeContract();
+        break;
+    case 'contracts_renew':
+        (new DocumentController())->renewContract();
+        break;
+    case 'contracts_download':
+        (new DocumentController())->downloadContract();
+        break;
+    case 'contracts_acknowledge':
+        (new DocumentController())->acknowledgeContract();
+        break;
 
     case 'compliance':
         (new ComplianceController())->index();
@@ -90,6 +183,30 @@ switch ($page) {
     case 'compliance_generate':
         (new ComplianceController())->generateContribution();
         break;
+    case 'compliance_submit_record':
+        (new ComplianceController())->submitRecord();
+        break;
+    case 'compliance_request_correction':
+        (new ComplianceController())->requestCorrection();
+        break;
+    case 'compliance_review_record':
+        (new ComplianceController())->reviewRecord();
+        break;
+    case 'compliance_decide_correction':
+        (new ComplianceController())->decideCorrection();
+        break;
+    case 'compliance_update_contribution':
+        (new ComplianceController())->updateContribution();
+        break;
+    case 'compliance_download_contribution':
+        (new ComplianceController())->downloadContribution();
+        break;
+    case 'compliance_export_report':
+        (new ComplianceController())->exportReport();
+        break;
+    case 'compliance_supporting_file':
+        (new ComplianceController())->downloadSupporting();
+        break;
 
     case 'benefits':
         (new BenefitsController())->index();
@@ -98,10 +215,10 @@ switch ($page) {
         (new BenefitsController())->loans();
         break;
     case 'benefits_submit_claim':
-        (new BenefitsController())->submitClaim();
+        (new BenefitsController())->applyBenefit();
         break;
     case 'benefits_request_loan':
-        (new BenefitsController())->requestLoan();
+        (new LoansController())->apply();
         break;
     case 'admin_request_loan':
         (new BenefitsController())->adminRequestLoan();
@@ -113,10 +230,25 @@ switch ($page) {
         (new BenefitsController())->adminGrantAllowance();
         break;
     case 'admin_update_claim_status':
-        (new BenefitsController())->updateClaimStatus();
+        (new BenefitsController())->reviewBenefit();
+        break;
+    case 'benefits_resubmit':
+        (new BenefitsController())->resubmitBenefit();
+        break;
+    case 'benefits_plan_store':
+        (new BenefitsController())->storeBenefit();
+        break;
+    case 'benefits_plan_update':
+        (new BenefitsController())->updateBenefit();
+        break;
+    case 'benefits_plan_toggle':
+        (new BenefitsController())->toggleBenefit();
+        break;
+    case 'benefits_requirement':
+        (new BenefitsController())->downloadBenefitFile();
         break;
     case 'admin_update_loan_status':
-        (new BenefitsController())->updateLoanStatus();
+        (new LoansController())->review();
         break;
     case 'benefits_claim_delete':
         (new BenefitsController())->deleteClaim();
@@ -125,7 +257,22 @@ switch ($page) {
         (new BenefitsController())->deleteLoan();
         break;
     case 'benefits_loan_payment':
-        (new BenefitsController())->addLoanPayment();
+        (new LoansController())->payment();
+        break;
+    case 'benefits_loan_resubmit':
+        (new LoansController())->resubmit();
+        break;
+    case 'loan_program_save':
+        (new LoansController())->saveProgram();
+        break;
+    case 'loan_program_toggle':
+        (new LoansController())->toggleProgram();
+        break;
+    case 'benefits_loan_detail':
+        (new LoansController())->detail();
+        break;
+    case 'benefits_loan_requirement':
+        (new LoansController())->requirement();
         break;
     case 'allowance_create':
         (new BenefitsController())->createAllowance();
@@ -151,6 +298,33 @@ switch ($page) {
         break;
     case 'separation_update_clearance':
         (new SeparationController())->updateClearance();
+        break;
+    case 'separation_review':
+        (new SeparationController())->review();
+        break;
+    case 'separation_generate_clearance':
+        (new SeparationController())->generateClearance();
+        break;
+    case 'separation_upload_clearance_document':
+        (new SeparationController())->uploadClearanceDocument();
+        break;
+    case 'separation_save_asset':
+        (new SeparationController())->saveAsset();
+        break;
+    case 'separation_save_interview':
+        (new SeparationController())->saveInterview();
+        break;
+    case 'separation_complete':
+        (new SeparationController())->complete();
+        break;
+    case 'separation_archive':
+        (new SeparationController())->archive();
+        break;
+    case 'separation_final_clearance':
+        (new SeparationController())->finalClearance();
+        break;
+    case 'separation_file':
+        (new SeparationController())->downloadFile();
         break;
 
     case 'employees':

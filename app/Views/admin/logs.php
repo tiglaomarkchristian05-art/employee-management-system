@@ -1,44 +1,43 @@
-<?php
-require APP_PATH . 'Views/layouts/header.php';
-require APP_PATH . 'Views/layouts/sidebar.php';
-?>
-
-<div id="main-content">
-    <?php require APP_PATH . 'Views/layouts/navbar.php'; ?>
-
-    <div class="my-3">
-        <h4 class="fw-bold text-light mb-1"><i class="fa-solid fa-receipt text-warning me-2"></i> Enterprise Audit Trail & Security Logs</h4>
-        <p class="text-secondary">Immutable log of all user actions, CRUD events, authentication attempts, and IP signatures</p>
-    </div>
-
-    <div class="glass-card p-4 mb-4">
-        <div class="table-responsive">
-            <table class="table align-middle datatable-init">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>User</th>
-                        <th>Module</th>
-                        <th>Action</th>
-                        <th>Description</th>
-                        <th>IP Address</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($logs as $log): ?>
-                    <tr>
-                        <td class="small text-secondary"><?= $log['created_at']; ?></td>
-                        <td class="fw-bold text-light"><?= htmlspecialchars($log['username'] ?? 'System'); ?></td>
-                        <td><span class="badge bg-secondary"><?= htmlspecialchars($log['module']); ?></span></td>
-                        <td><span class="badge badge-soft-info"><?= htmlspecialchars($log['action']); ?></span></td>
-                        <td class="small text-light"><?= htmlspecialchars($log['description']); ?></td>
-                        <td><code><?= htmlspecialchars($log['ip_address']); ?></code></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<?php require APP_PATH . 'Views/layouts/footer.php'; ?>
+<?php require APP_PATH . 'Views/layouts/header.php'; require APP_PATH . 'Views/layouts/sidebar.php'; $auditValue=static function($value){if($value===null||$value==='')return 'Not recorded';$decoded=json_decode((string)$value,true);return json_last_error()===JSON_ERROR_NONE?json_encode($decoded,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES):(string)$value;}; ?>
+<div id="main-content"><?php require APP_PATH . 'Views/layouts/navbar.php'; ?>
+ <div class="module-toolbar my-3"><div class="module-toolbar-title"><span class="module-toolbar-icon"><i class="fa-solid fa-receipt"></i></span><div><h5>Audit Trail</h5><small>Immutable backend activity history and security events</small></div></div><span class="badge badge-soft-info"><?= number_format($pagination['total']); ?> records</span></div>
+ <form class="glass-card p-3 mb-4" method="get"><input type="hidden" name="page" value="admin_logs"><div class="row g-2 align-items-end">
+  <div class="col-lg-3"><label class="form-label small">Search</label><input class="form-control" name="q" value="<?= htmlspecialchars($filters['q']); ?>" placeholder="Action, module, description or record ID"></div>
+  <div class="col-sm-6 col-lg-2"><label class="form-label small">From</label><input class="form-control" type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from']); ?>"></div>
+  <div class="col-sm-6 col-lg-2"><label class="form-label small">To</label><input class="form-control" type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to']); ?>"></div>
+  <div class="col-sm-6 col-lg-2"><label class="form-label small">User</label><select class="form-select" name="user_id"><option value="">All users</option><?php foreach($filter_options['users'] as $option): ?><option value="<?= (int)$option['id']; ?>" <?= (int)$filters['user_id']===(int)$option['id']?'selected':''; ?>><?= htmlspecialchars($option['username']); ?></option><?php endforeach; ?></select></div>
+  <div class="col-sm-6 col-lg-1"><label class="form-label small">Role</label><select class="form-select" name="role"><option value="">All</option><?php foreach($filter_options['roles'] as $option): ?><option <?= $filters['role']===$option['value']?'selected':''; ?>><?= htmlspecialchars($option['value']); ?></option><?php endforeach; ?></select></div>
+  <div class="col-sm-6 col-lg-2"><label class="form-label small">Module</label><select class="form-select" name="module"><option value="">All modules</option><?php foreach($filter_options['modules'] as $option): ?><option <?= $filters['module']===$option['value']?'selected':''; ?>><?= htmlspecialchars($option['value']); ?></option><?php endforeach; ?></select></div>
+  <div class="col-sm-6 col-lg-3"><label class="form-label small">Action</label><select class="form-select" name="action"><option value="">All actions</option><?php foreach($filter_options['actions'] as $option): ?><option <?= $filters['action']===$option['value']?'selected':''; ?>><?= htmlspecialchars($option['value']); ?></option><?php endforeach; ?></select></div>
+  <div class="col-lg-3 d-flex gap-2"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-filter me-1"></i>Filter</button><a class="btn btn-outline-secondary" href="index.php?page=admin_logs">Reset</a></div>
+ </div></form>
+ <div class="glass-card p-3 mb-4"><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Timestamp</th><th>User / Role</th><th>Module</th><th>Action</th><th>Record</th><th>Description</th><th></th></tr></thead><tbody>
+ <?php if(!$logs): ?><tr><td colspan="7"><div class="text-center text-secondary py-5"><i class="fa-solid fa-clock-rotate-left fa-2x mb-3 d-block"></i>No audit records match these filters.</div></td></tr><?php endif; ?>
+ <?php foreach($logs as $log): ?><tr><td class="small text-nowrap"><?= htmlspecialchars($log['created_at']); ?></td><td><strong><?= htmlspecialchars($log['username']??'System'); ?></strong><small class="d-block text-secondary"><?= htmlspecialchars($log['resolved_role']??'System'); ?></small></td><td><span class="badge bg-secondary"><?= htmlspecialchars($log['module']); ?></span></td><td><span class="badge badge-soft-info"><?= htmlspecialchars($log['action']); ?></span></td><td class="small"><?= htmlspecialchars($log['record_type']??'system'); ?><?= !empty($log['record_id'])?' #'.(int)$log['record_id']:''; ?></td><td class="small"><?= htmlspecialchars($log['description']); ?></td><td><button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#auditDetail<?= (int)$log['id']; ?>">Details</button></td></tr>
+ <div class="modal fade audit-detail-modal" id="auditDetail<?= (int)$log['id']; ?>" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content audit-detail-content">
+  <div class="modal-header audit-detail-header"><div class="d-flex align-items-center gap-3"><span class="audit-detail-icon"><i class="fa-solid fa-shield-halved"></i></span><div><div class="section-kicker">IMMUTABLE ACTIVITY RECORD</div><h5 class="modal-title">Audit record #<?= (int)$log['id']; ?></h5><small><?= htmlspecialchars($log['created_at']); ?></small></div></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body audit-detail-body"><div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3"><div><span class="audit-detail-action-label">Recorded action</span><div class="audit-detail-action"><?= htmlspecialchars(str_replace('_',' ',$log['action'])); ?></div></div><span class="badge badge-soft-info audit-detail-module"><?= htmlspecialchars($log['module']); ?></span></div>
+   <div class="audit-detail-meta-grid"><div><span>Actor</span><strong><?= htmlspecialchars($log['username']??'System'); ?></strong><small><?= htmlspecialchars($log['resolved_role']??'System'); ?></small></div><div><span>Employee ID</span><strong><?= $log['employee_id']!==null?'#'.(int)$log['employee_id']:'Not linked'; ?></strong><small>Account mapping</small></div><div><span>Record</span><strong><?= htmlspecialchars(ucwords(str_replace('_',' ',$log['record_type']??'system'))); ?><?= !empty($log['record_id'])?' #'.(int)$log['record_id']:''; ?></strong><small>Affected resource</small></div></div>
+   <section class="audit-detail-section"><div class="audit-detail-section-title"><i class="fa-regular fa-message"></i><span>Description</span></div><p><?= nl2br(htmlspecialchars($log['description'])); ?></p></section>
+   <div class="row g-3"><div class="col-md-6"><section class="audit-value-card audit-value-before"><div><i class="fa-solid fa-arrow-rotate-left"></i><span>Previous value</span></div><pre><?= htmlspecialchars($auditValue($log['old_value'])); ?></pre></section></div><div class="col-md-6"><section class="audit-value-card audit-value-after"><div><i class="fa-solid fa-arrow-right"></i><span>New value</span></div><pre><?= htmlspecialchars($auditValue($log['new_value'])); ?></pre></section></div></div>
+   <details class="audit-request-details mt-3"><summary><i class="fa-solid fa-network-wired"></i>Technical request details</summary><div><span><strong>IP address</strong><?= htmlspecialchars($log['ip_address']??'Unknown'); ?></span><span><strong>User agent</strong><?= htmlspecialchars($log['user_agent']??'Unknown'); ?></span></div></details>
+  </div><div class="modal-footer audit-detail-footer"><span><i class="fa-solid fa-lock me-1"></i>This audit record is read-only.</span><button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button></div>
+ </div></div></div>
+ <?php endforeach; ?></tbody></table></div></div>
+ <?php if($pagination['pages']>1):
+  $query=$_GET;unset($query['p']);$current=(int)$pagination['page'];$pages=(int)$pagination['pages'];
+  $pageUrl=function($page)use($query){$params=$query;$params['p']=$page;return '?'.htmlspecialchars(http_build_query($params));};
+  $visible=array_values(array_unique(array_filter([1,$current-2,$current-1,$current,$current+1,$current+2,$pages],fn($page)=>$page>=1&&$page<=$pages)));sort($visible);
+ ?>
+ <nav class="audit-pagination" aria-label="Audit Trail pages">
+  <div class="audit-pagination-summary"><strong>Page <?= $current; ?></strong><span>of <?= $pages; ?></span></div>
+  <ul class="pagination mb-0">
+   <li class="page-item <?= $current<=1?'disabled':''; ?>"><a class="page-link audit-page-direction" href="<?= $current>1?$pageUrl($current-1):'#'; ?>" aria-label="Previous page"><i class="fa-solid fa-chevron-left"></i><span>Previous</span></a></li>
+   <?php $previous=0;foreach($visible as $page):if($previous&&$page>$previous+1): ?><li class="page-item disabled audit-page-gap"><span class="page-link">•••</span></li><?php endif; ?>
+   <li class="page-item <?= $page===$current?'active':''; ?>"><a class="page-link" href="<?= $pageUrl($page); ?>" <?= $page===$current?'aria-current="page"':''; ?>><?= $page; ?></a></li>
+   <?php $previous=$page;endforeach; ?>
+   <li class="page-item <?= $current>=$pages?'disabled':''; ?>"><a class="page-link audit-page-direction" href="<?= $current<$pages?$pageUrl($current+1):'#'; ?>" aria-label="Next page"><span>Next</span><i class="fa-solid fa-chevron-right"></i></a></li>
+  </ul>
+ </nav>
+ <?php endif; ?>
+</div><?php require APP_PATH . 'Views/layouts/footer.php'; ?>

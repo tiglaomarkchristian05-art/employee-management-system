@@ -1,166 +1,112 @@
 <?php
 require APP_PATH . 'Views/layouts/header.php';
 require APP_PATH . 'Views/layouts/sidebar.php';
+$isAdmin=$is_admin??Auth::isAdmin();$csrf=csrf_token();
+$statusTone=static function($status){return in_array($status,['Completed','Attended','Confirmed'],true)?'success':(in_array($status,['Cancelled','Failed','Absent'],true)?'danger':(in_array($status,['Applied','Assigned','Draft'],true)?'warning':'info'));};
 ?>
-
 <div id="main-content">
-    <?php require APP_PATH . 'Views/layouts/navbar.php'; ?>
+ <?php require APP_PATH . 'Views/layouts/navbar.php'; ?>
+ <div class="d-flex align-items-center justify-content-between my-3 flex-wrap gap-2"><div><h4><i class="fa-solid fa-graduation-cap"></i><?= $isAdmin?'Training & Development Management':'My Training & Development'; ?></h4><p class="text-secondary mb-0"><?= $isAdmin?'Create, schedule, assign, monitor and complete employee training workflows':'View assignments, apply, submit requirements and access your results and certificates'; ?></p></div><div class="d-flex gap-2 flex-wrap"><a href="index.php?page=training_courses" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-book-open"></i>Course Library</a><a href="index.php?page=training_matrix" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-chart-pie"></i>Skills Matrix</a><?php if($isAdmin): ?><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#trainingFormModal"><i class="fa-solid fa-plus"></i>Create Training</button><?php endif; ?></div></div>
 
-    <div class="d-flex align-items-center justify-content-between my-3">
-        <div>
-            <h4 class="fw-bold mb-1" style="color: var(--text);"><i class="fa-solid fa-graduation-cap me-2" style="color: var(--primary);"></i> Learning & Development Management</h4>
-            <p class="text-secondary mb-0">Course library, training registrations, online quizzes, and skills competency radar</p>
-        </div>
-        <div class="d-flex gap-2">
-            <a href="index.php?page=training_courses" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-book-open me-1"></i> Course Library</a>
-            <a href="index.php?page=training_matrix" class="btn btn-primary btn-sm"><i class="fa-solid fa-chart-pie me-1"></i> Skills Matrix</a>
-        </div>
-    </div>
+ <div class="row g-3 mb-4 core-kpi-grid">
+  <?php $cards=$isAdmin?[['Completed Trainings',$stats['completed'],'fa-circle-check','success'],['Pending Participation',$stats['pending'],'fa-user-clock','warning'],['Average Assessment',$stats['avg_score'].'%','fa-chart-line','info'],['Active Training Budget','PHP '.number_format($stats['total_budget'],2),'fa-wallet','primary']]:[['Completed Trainings',$stats['completed'],'fa-circle-check','success'],['Pending / Assigned',$stats['pending'],'fa-user-clock','warning'],['Average Result',$stats['avg_score'].'%','fa-chart-line','info'],['Available Trainings',count($courses),'fa-calendar-days','primary']];foreach($cards as $card): ?>
+  <div class="col-xl-3 col-sm-6"><div class="glass-card stat-card"><div class="text-secondary small fw-bold text-uppercase"><?= htmlspecialchars($card[0]); ?></div><h3 class="fw-bold mt-2 mb-1"><?= htmlspecialchars((string)$card[1]); ?></h3><span class="text-secondary small">Live training records</span><i class="fa-solid <?= $card[2]; ?> stat-icon-bg tone-<?= $card[3]; ?>"></i></div></div>
+  <?php endforeach; ?>
+ </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="glass-card p-3">
-                <small class="text-secondary fw-bold">Completed Trainings</small>
-                <h3 class="fw-bold text-success mb-0 mt-1"><?= $stats['completed']; ?></h3>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="glass-card p-3">
-                <small class="text-secondary fw-bold">Pending Registrations</small>
-                <h3 class="fw-bold text-warning mb-0 mt-1"><?= $stats['pending']; ?></h3>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="glass-card p-3">
-                <small class="text-secondary fw-bold">Average Assessment Score</small>
-                <h3 class="fw-bold text-info mb-0 mt-1"><?= $stats['avg_score']; ?>%</h3>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="glass-card p-3">
-                <small class="text-secondary fw-bold">Total LMS Budget</small>
-                <h3 class="fw-bold mb-0 mt-1" style="color: var(--primary);">₱<?= number_format($stats['total_budget'], 2); ?></h3>
-            </div>
-        </div>
-    </div>
+ <?php if($isAdmin): ?>
+ <div class="glass-card p-4 mb-4" id="trainingManagementSection">
+  <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><div class="section-kicker">TRAINING REGISTER</div><h5 class="mb-0">Training Programs</h5></div><div class="d-flex gap-2"><select id="courseStatusFilter" class="form-select form-select-sm"><option value="">All statuses</option><?php foreach(Training::COURSE_STATUSES as $status): ?><option><?= $status; ?></option><?php endforeach; ?></select><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#trainingFormModal"><i class="fa-solid fa-plus"></i>New Training</button></div></div>
+  <div class="table-responsive"><table id="trainingCoursesTable" class="table align-middle datatable-init"><thead><tr><th>Training</th><th>Schedule</th><th>Trainer / Venue</th><th>Status</th><th>Capacity</th><th>Material</th><th>Actions</th></tr></thead><tbody>
+   <?php foreach($courses as $course): ?><tr>
+    <td><strong><?= htmlspecialchars($course['title']); ?></strong><small class="d-block text-secondary"><?= htmlspecialchars($course['category_name']??'General'); ?> · <?= htmlspecialchars($course['course_type']); ?></small></td>
+    <td><?= date('M j, Y',strtotime($course['start_date'])); ?><small class="d-block text-secondary">to <?= date('M j, Y',strtotime($course['end_date'])); ?></small></td>
+    <td><?= htmlspecialchars($course['trainer_name']??'Internal HR'); ?><small class="d-block text-secondary"><?= htmlspecialchars($course['venue']); ?></small></td>
+    <td><span class="badge badge-soft-<?= $statusTone($course['status']); ?>"><?= htmlspecialchars($course['status']); ?></span></td>
+    <td><strong><?= (int)$course['enrolled_count']; ?> / <?= (int)$course['capacity']; ?></strong><div class="progress mt-1" style="height:5px;width:90px"><div class="progress-bar" style="width:<?= min(100,round(((int)$course['enrolled_count']/max(1,(int)$course['capacity']))*100)); ?>%"></div></div></td>
+    <td><?= $course['material_file']?'<a class="btn btn-outline-primary btn-sm" href="index.php?page=training_material&amp;id='.(int)$course['id'].'"><i class="fa-solid fa-download"></i>Download</a>':'<span class="text-secondary small">None</span>'; ?></td>
+    <td class="table-action-cell"><div class="table-action-group"><a href="index.php?page=training_details&amp;id=<?= (int)$course['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-users"></i>Participants</a><button type="button" class="btn btn-outline-primary btn-sm btn-edit-training" data-course="<?= htmlspecialchars(json_encode($course),ENT_QUOTES,'UTF-8'); ?>" data-bs-toggle="modal" data-bs-target="#trainingFormModal"><i class="fa-solid fa-pen"></i>Edit</button><button type="button" class="btn btn-primary btn-sm btn-assign-training" data-id="<?= (int)$course['id']; ?>" data-title="<?= htmlspecialchars($course['title']); ?>" data-bs-toggle="modal" data-bs-target="#assignTrainingModal" <?= in_array($course['status'],['Completed','Cancelled'],true)?'disabled':''; ?>><i class="fa-solid fa-user-plus"></i>Assign</button><?php if(!in_array($course['status'],['Completed','Cancelled'],true)): ?><button type="button" class="btn btn-outline-primary btn-sm btn-remind-training" data-id="<?= (int)$course['id']; ?>"><i class="fa-regular fa-bell"></i>Remind</button><?php endif; ?><?php if($course['status']!=='Cancelled'): ?><button type="button" class="btn btn-outline-danger btn-sm btn-cancel-training" data-id="<?= (int)$course['id']; ?>" data-title="<?= htmlspecialchars($course['title']); ?>"><i class="fa-solid fa-ban"></i>Cancel</button><?php endif; ?></div></td>
+   </tr><?php endforeach; ?>
+  </tbody></table></div>
+ </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-lg-8">
-            <div class="glass-card p-4">
-                <h5 class="fw-bold mb-3" style="color: var(--text);"><i class="fa-solid fa-book me-2" style="color: var(--primary);"></i> Featured Training Courses</h5>
-                <div class="row g-3">
-                    <?php foreach ($courses as $course): ?>
-                    <div class="col-md-6">
-                        <div class="p-3 rounded bg-light border h-100 d-flex flex-column justify-content-between">
-                            <div>
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="badge badge-soft-info"><?= $course['course_type']; ?></span>
-                                    <small class="text-secondary"><i class="fa-solid fa-clock me-1"></i> <?= $course['duration_hours']; ?> hrs</small>
-                                </div>
-                                <h6 class="fw-bold mb-1" style="color: var(--text);"><?= htmlspecialchars($course['title']); ?></h6>
-                                <p class="text-secondary small mb-3"><?= htmlspecialchars($course['description']); ?></p>
-                                <div class="small text-secondary mb-2">
-                                    <div><i class="fa-solid fa-chalkboard-user me-1 text-primary"></i> Trainer: <?= htmlspecialchars($course['trainer_name'] ?? 'Internal HR'); ?></div>
-                                    <div><i class="fa-solid fa-calendar me-1 text-warning"></i> Date: <?= $course['start_date']; ?></div>
-                                </div>
-                            </div>
-                            <div class="pt-2 border-top d-flex align-items-center justify-content-between">
-                                <span class="fw-bold text-success small">Budget: ₱<?= number_format($course['budget'], 2); ?></span>
-                                <?php if (Auth::isSelfService()): ?><button class="btn btn-sm btn-primary fw-bold btn-register-course" data-id="<?= $course['id']; ?>">Register Now</button><?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
+ <div class="glass-card p-4 mb-4" id="trainingRecordsSection">
+  <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><div class="section-kicker">EMPLOYEE TRAINING HISTORY</div><h5 class="mb-0">Participants, Attendance &amp; Results</h5></div><select id="participationStatusFilter" class="form-select form-select-sm" style="max-width:190px"><option value="">All participation statuses</option><?php foreach(Training::PARTICIPATION_STATUSES as $status): ?><option><?= $status; ?></option><?php endforeach; ?></select></div>
+  <div class="table-responsive"><table id="trainingParticipantsTable" class="table align-middle datatable-init"><thead><tr><th>Employee</th><th>Training</th><th>Status</th><th>Attendance</th><th>Assessment</th><th>Requirement</th><th>Certificate</th><th>Action</th></tr></thead><tbody>
+   <?php foreach($all_registrations as $reg): ?><tr>
+    <td><strong><?= htmlspecialchars($reg['first_name'].' '.$reg['last_name']); ?></strong><small class="d-block text-secondary"><?= htmlspecialchars($reg['employee_code']); ?> · <?= htmlspecialchars($reg['department_name']??''); ?></small></td>
+    <td><?= htmlspecialchars($reg['course_title']); ?><small class="d-block text-secondary"><?= date('M j, Y',strtotime($reg['start_date'])); ?></small></td>
+    <td><span class="badge badge-soft-<?= $statusTone($reg['status']); ?>"><?= htmlspecialchars($reg['status']); ?></span></td>
+    <td><?= (int)$reg['attendance_percentage']; ?>%</td><td><?= $reg['assessment_result']!==null?number_format((float)$reg['assessment_result'],1).'%':'Not published'; ?></td>
+    <td><?= $reg['requirements_file']?'<a class="btn btn-outline-primary btn-sm" href="index.php?page=training_requirement&amp;id='.(int)$reg['id'].'"><i class="fa-solid fa-download"></i>View</a>':'<span class="text-secondary small">None</span>'; ?></td>
+    <td><?= $reg['status']==='Completed'&&$reg['certificate_file']?'<a class="btn btn-outline-success btn-sm" href="index.php?page=training_certificate&amp;id='.(int)$reg['id'].'"><i class="fa-solid fa-certificate"></i>Certificate</a>':'<span class="text-secondary small">Not issued</span>'; ?></td>
+    <td><button type="button" class="btn btn-primary btn-sm btn-update-participant" data-registration="<?= htmlspecialchars(json_encode($reg),ENT_QUOTES,'UTF-8'); ?>" data-bs-toggle="modal" data-bs-target="#participantModal"><i class="fa-solid fa-clipboard-check"></i>Record</button></td>
+   </tr><?php endforeach; ?>
+  </tbody></table></div>
+ </div>
+ <?php else: ?>
+ <div id="trainingOpportunitiesSection" class="sidebar-destination"><div class="section-kicker">AVAILABLE &amp; ASSIGNED TRAINING</div><h5 class="section-heading">Training Opportunities</h5>
+ <div class="row g-3 mb-4">
+  <?php if(empty($courses)): ?><div class="col-12"><div class="glass-card dashboard-empty"><i class="fa-solid fa-calendar-check"></i><strong>No available training</strong><span>Scheduled and assigned training will appear here.</span></div></div>
+  <?php else: foreach($courses as $course): $full=(int)$course['enrolled_count']>=max(1,(int)$course['capacity']); ?>
+  <div class="col-xl-4 col-md-6"><div class="glass-card p-4 h-100 d-flex flex-column"><div class="d-flex justify-content-between gap-2 mb-2"><span class="badge badge-soft-info"><?= htmlspecialchars($course['course_type']); ?></span><span class="badge badge-soft-<?= $statusTone($course['status']); ?>"><?= htmlspecialchars($course['status']); ?></span></div><h5 class="mb-1"><?= htmlspecialchars($course['title']); ?></h5><p class="text-secondary small flex-grow-1"><?= htmlspecialchars($course['description']); ?></p><div class="training-card-meta"><span><i class="fa-regular fa-calendar"></i><?= date('M j',strtotime($course['start_date'])); ?> - <?= date('M j, Y',strtotime($course['end_date'])); ?></span><span><i class="fa-solid fa-location-dot"></i><?= htmlspecialchars($course['venue']); ?></span><span><i class="fa-solid fa-users"></i><?= (int)$course['enrolled_count']; ?>/<?= (int)$course['capacity']; ?> participants</span></div><div class="d-flex gap-2 flex-wrap pt-3 mt-3 border-top"><a href="index.php?page=training_details&amp;id=<?= (int)$course['id']; ?>" class="btn btn-outline-primary btn-sm">Details</a><?php if(!$course['registration_id']): ?><button class="btn btn-primary btn-sm btn-apply-training" data-id="<?= (int)$course['id']; ?>" <?= $full?'disabled':''; ?>><i class="fa-solid fa-paper-plane"></i><?= $full?'Full':'Apply'; ?></button><?php else: ?><span class="badge badge-soft-<?= $statusTone($course['participation_status']); ?> align-self-center"><?= htmlspecialchars($course['participation_status']); ?></span><?php endif; ?></div></div></div>
+  <?php endforeach; endif; ?>
+ </div>
 
-        <div class="col-lg-4">
-            <div class="glass-card p-4 skills-matrix-card">
-                <div class="skills-matrix-header">
-                    <div class="skills-matrix-heading-icon"><i class="fa-solid fa-chart-radar"></i></div>
-                    <div>
-                        <h5 class="fw-bold mb-1" style="color: var(--text);">Employee Skills Matrix</h5>
-                        <p class="mb-0">Current competency compared with deployment targets</p>
-                    </div>
-                </div>
-                <div class="skills-matrix-chart-shell">
-                    <canvas id="skillsRadarChart" height="300"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="glass-card p-4 mb-4">
-        <h5 class="fw-bold mb-3" style="color: var(--text);"><i class="fa-solid fa-list-check me-2" style="color: var(--success);"></i> My Registered Training Sessions & Quiz Status</h5>
-        <div class="table-responsive">
-            <table class="table align-middle datatable-init">
-                <thead>
-                    <tr>
-                        <th>Course Title</th>
-                        <th>Venue / Mode</th>
-                        <th>Start Date</th>
-                        <th>Status</th>
-                        <th>Attendance %</th>
-                        <th>Quiz Score</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($my_registrations as $reg): ?>
-                    <tr>
-                        <td class="fw-bold" style="color: var(--text);"><?= htmlspecialchars($reg['course_title']); ?></td>
-                        <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($reg['venue']); ?></span></td>
-                        <td><?= $reg['start_date']; ?></td>
-                        <td>
-                            <?php if ($reg['status'] === 'Completed'): ?>
-                                <span class="badge badge-soft-success">Completed</span>
-                            <?php else: ?>
-                                <span class="badge badge-soft-warning">In Progress</span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <div class="progress" style="height: 6px; width: 100px;">
-                                <div class="progress-bar bg-info" style="width: <?= $reg['attendance_percentage']; ?>%;"></div>
-                            </div>
-                            <small class="text-secondary"><?= $reg['attendance_percentage']; ?>%</small>
-                        </td>
-                        <td><span class="fw-bold text-info"><?= $reg['quiz_score']; ?>%</span></td>
-                        <td>
-                            <?php if ($reg['status'] === 'Completed'): ?>
-                                <a class="btn btn-sm btn-outline-success" href="index.php?page=training_certificate&amp;id=<?= $reg['id']; ?>"><i class="fa-solid fa-certificate me-1"></i> Download Cert</a>
-                            <?php else: ?>
-                                <a href="index.php?page=training_quiz&course_id=<?= $reg['course_id']; ?>" class="btn btn-sm btn-warning fw-bold text-white"><i class="fa-solid fa-pen-to-square me-1"></i> Take Quiz</a>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
+ </div><div class="glass-card p-4 mb-4" id="myTrainingHistorySection"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><div class="section-kicker">MY TRAINING HISTORY</div><h5 class="mb-0">Participation, Attendance &amp; Results</h5></div><select id="myTrainingStatusFilter" class="form-select form-select-sm" style="max-width:190px"><option value="">All statuses</option><?php foreach(Training::PARTICIPATION_STATUSES as $status): ?><option><?= $status; ?></option><?php endforeach; ?></select></div>
+  <div class="table-responsive"><table id="myTrainingTable" class="table align-middle datatable-init"><thead><tr><th>Training</th><th>Schedule</th><th>Status</th><th>Attendance</th><th>Assessment Result</th><th>Files</th><th>Actions</th></tr></thead><tbody>
+   <?php foreach($my_registrations as $reg): ?><tr><td><strong><?= htmlspecialchars($reg['course_title']); ?></strong><small class="d-block text-secondary"><?= htmlspecialchars($reg['venue']); ?></small></td><td><?= date('M j, Y',strtotime($reg['start_date'])); ?></td><td><span class="badge badge-soft-<?= $statusTone($reg['status']); ?>"><?= htmlspecialchars($reg['status']); ?></span></td><td><?= (int)$reg['attendance_percentage']; ?>%</td><td><?= $reg['assessment_result']!==null?number_format((float)$reg['assessment_result'],1).'%':'Not published'; ?></td><td><div class="d-flex gap-1 flex-wrap"><?php if($reg['material_file']): ?><a href="index.php?page=training_material&amp;id=<?= (int)$reg['course_id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-download"></i>Material</a><?php endif; ?><?php if($reg['status']==='Completed'&&$reg['certificate_file']): ?><a href="index.php?page=training_certificate&amp;id=<?= (int)$reg['id']; ?>" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-certificate"></i>Certificate</a><?php endif; ?></div></td><td class="table-action-cell"><div class="table-action-group"><a href="index.php?page=training_details&amp;id=<?= (int)$reg['course_id']; ?>" class="btn btn-outline-primary btn-sm">Details</a><?php if($reg['status']==='Assigned'): ?><button class="btn btn-primary btn-sm btn-confirm-training" data-id="<?= (int)$reg['id']; ?>"><i class="fa-solid fa-check"></i>Confirm</button><?php endif; ?><?php if(!in_array($reg['status'],['Completed','Failed','Cancelled'],true)): ?><button class="btn btn-outline-primary btn-sm btn-requirement" data-id="<?= (int)$reg['id']; ?>" data-title="<?= htmlspecialchars($reg['course_title']); ?>" data-bs-toggle="modal" data-bs-target="#requirementModal"><i class="fa-solid fa-upload"></i>Requirement</button><?php endif; ?><?php if(in_array($reg['status'],['Confirmed','Attended'],true)): ?><a href="index.php?page=training_quiz&amp;course_id=<?= (int)$reg['course_id']; ?>" class="btn btn-outline-warning btn-sm"><i class="fa-solid fa-pen"></i>Assessment</a><?php endif; ?></div></td></tr><?php endforeach; ?>
+  </tbody></table></div>
+ </div>
+ <?php endif; ?>
 </div>
+<?php if($isAdmin): ?>
+<div class="modal fade" id="trainingFormModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><form id="trainingForm" enctype="multipart/form-data"><div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-graduation-cap text-primary me-2"></i><span id="trainingFormTitle">Create Training</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" name="csrf_token" value="<?= $csrf; ?>"><input type="hidden" name="id" id="trainingId"><div class="row g-3">
+ <div class="col-md-8"><label class="form-label">Title *</label><input class="form-control" name="title" id="trainingTitle" maxlength="150" required></div><div class="col-md-4"><label class="form-label">Status *</label><select class="form-select" name="status" id="trainingStatus" required><?php foreach(Training::COURSE_STATUSES as $status): ?><option><?= $status; ?></option><?php endforeach; ?></select></div>
+ <div class="col-12"><label class="form-label">Description *</label><textarea class="form-control" name="description" id="trainingDescription" required></textarea></div>
+ <div class="col-md-4"><label class="form-label">Category *</label><select class="form-select" name="category_id" id="trainingCategory" required><option value="">Select category</option><?php foreach($categories as $category): ?><option value="<?= (int)$category['id']; ?>"><?= htmlspecialchars($category['name']); ?></option><?php endforeach; ?></select></div><div class="col-md-4"><label class="form-label">Trainer</label><select class="form-select" name="trainer_id" id="trainingTrainer"><option value="">Internal HR / TBA</option><?php foreach($trainers as $trainer): ?><option value="<?= (int)$trainer['id']; ?>"><?= htmlspecialchars($trainer['name']); ?></option><?php endforeach; ?></select></div><div class="col-md-4"><label class="form-label">Course Type *</label><select class="form-select" name="course_type" id="trainingType"><option>Internal</option><option>External</option><option>Online</option><option>Mandatory</option></select></div>
+ <div class="col-md-6"><label class="form-label">Venue / Platform *</label><input class="form-control" name="venue" id="trainingVenue" required></div><div class="col-md-3"><label class="form-label">Duration (hours) *</label><input type="number" class="form-control" name="duration_hours" id="trainingDuration" min="1" value="8" required></div><div class="col-md-3"><label class="form-label">Capacity *</label><input type="number" class="form-control" name="capacity" id="trainingCapacity" min="1" max="10000" value="30" required></div>
+ <div class="col-md-4"><label class="form-label">Start Date *</label><input type="date" class="form-control" name="start_date" id="trainingStart" required></div><div class="col-md-4"><label class="form-label">End Date *</label><input type="date" class="form-control" name="end_date" id="trainingEnd" required></div><div class="col-md-4"><label class="form-label">Budget</label><input type="number" class="form-control" name="budget" id="trainingBudget" min="0" step="0.01" value="0"></div>
+ <div class="col-12"><hr><div class="section-kicker">AI RECOMMENDATION METADATA</div><small class="text-secondary">Use normalized job-related terms. These fields make recommendations more accurate and explainable.</small></div>
+ <div class="col-md-4"><label class="form-label">Target Department</label><select class="form-select" name="target_department_id" id="trainingTargetDepartment"><option value="">All / General</option><?php foreach($departments as $department): ?><option value="<?= (int)$department['id']; ?>"><?= htmlspecialchars($department['name']); ?></option><?php endforeach; ?></select></div>
+ <div class="col-md-4"><label class="form-label">Target Position</label><select class="form-select" name="target_position_id" id="trainingTargetPosition"><option value="">All / General</option><?php foreach($positions as $position): ?><option value="<?= (int)$position['id']; ?>"><?= htmlspecialchars($position['title']); ?></option><?php endforeach; ?></select></div>
+ <div class="col-md-4"><label class="form-label">Difficulty</label><select class="form-select" name="difficulty_level" id="trainingDifficulty"><option>Beginner</option><option selected>Intermediate</option><option>Advanced</option></select></div>
+ <div class="col-md-6"><label class="form-label">Required / Developed Skills</label><input class="form-control" name="required_skills" id="trainingRequiredSkills" placeholder="e.g. data privacy, applicant security, interviewing"><small class="form-text">Comma-separated, consistent skill labels.</small></div>
+ <div class="col-md-6"><label class="form-label">Prerequisite Training</label><select class="form-select" name="prerequisite_course_id" id="trainingPrerequisite"><option value="">None</option><?php foreach($courses as $candidate): ?><option value="<?= (int)$candidate['id']; ?>"><?= htmlspecialchars($candidate['title']); ?></option><?php endforeach; ?></select></div>
+ <div class="col-md-8"><label class="form-label">Certification Provided</label><input class="form-control" name="certification_provided" id="trainingCertification" maxlength="150" placeholder="Optional certification name"></div><div class="col-md-4"><label class="form-label">Retraining Interval (months)</label><input type="number" class="form-control" name="retraining_months" id="trainingRetraining" min="0" max="120" value="0"><small class="form-text">0 = do not recommend after completion.</small></div> <div class="col-md-7"><label class="form-label">Participation Requirements</label><textarea class="form-control" name="requirements" id="trainingRequirements" placeholder="Documents, prerequisites, equipment, or preparation"></textarea></div><div class="col-md-5"><label class="form-label">Training Material</label><input type="file" class="form-control" name="material_file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip"><small class="form-text">PDF, Office, text or ZIP; maximum 10 MB.</small></div>
+ </div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk"></i>Save Training</button></div></form></div></div></div>
 
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<div class="modal fade" id="assignTrainingModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><form id="assignTrainingForm"><div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-user-plus text-primary me-2"></i>Assign Employees</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" name="csrf_token" value="<?= $csrf; ?>"><input type="hidden" name="course_id" id="assignCourseId"><p class="text-secondary small">Assigning: <strong id="assignCourseTitle"></strong>. Existing active participants are skipped and capacity is enforced.</p><div class="row g-3"><div class="col-md-5"><label class="form-label">Assign Entire Department</label><select class="form-select" name="department_id"><option value="">None</option><?php foreach($departments as $department): ?><option value="<?= (int)$department['id']; ?>"><?= htmlspecialchars($department['name']); ?></option><?php endforeach; ?></select></div><div class="col-md-7"><label class="form-label">Select Individual Employees</label><select class="form-select" name="employee_ids[]" multiple size="8"><?php foreach($employees as $employee): if(!in_array($employee['status'],['Active','Probationary'],true))continue; ?><option value="<?= (int)$employee['id']; ?>"><?= htmlspecialchars($employee['employee_code'].' - '.$employee['first_name'].' '.$employee['last_name'].' ('.$employee['department_name'].')'); ?></option><?php endforeach; ?></select><small class="form-text">Hold Ctrl/Cmd to select multiple employees.</small></div></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="submit">Assign Employees</button></div></form></div></div></div>
+
+<div class="modal fade" id="participantModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form id="participantForm" enctype="multipart/form-data"><div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-clipboard-check text-primary me-2"></i>Attendance &amp; Result</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" name="csrf_token" value="<?= $csrf; ?>"><input type="hidden" name="registration_id" id="participantId"><p class="text-secondary small" id="participantContext"></p><div class="mb-3"><label class="form-label">Participation Status *</label><select class="form-select" name="status" id="participantStatus" required><?php foreach(Training::PARTICIPATION_STATUSES as $status): ?><option><?= $status; ?></option><?php endforeach; ?></select></div><div class="row g-3"><div class="col-6"><label class="form-label">Attendance %</label><input type="number" class="form-control" name="attendance_percentage" id="participantAttendance" min="0" max="100" value="0"></div><div class="col-6"><label class="form-label">Assessment Result %</label><input type="number" class="form-control" name="assessment_result" id="participantResult" min="0" max="100" step="0.01"></div><div class="col-12"><label class="form-label">Result Notes</label><textarea class="form-control" name="result_notes" id="participantNotes"></textarea></div><div class="col-12"><label class="form-label">Certificate PDF</label><input type="file" class="form-control" name="certificate_file" accept=".pdf"><small class="form-text">Optional. A printable system certificate is issued when completion is marked without a PDF.</small></div></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="submit">Publish Update</button></div></form></div></div></div>
+<?php else: ?>
+<div class="modal fade" id="requirementModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form id="requirementForm" enctype="multipart/form-data"><div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-upload text-primary me-2"></i>Upload Training Requirement</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" name="csrf_token" value="<?= $csrf; ?>"><input type="hidden" name="registration_id" id="requirementRegistrationId"><p class="text-secondary small" id="requirementCourseTitle"></p><label class="form-label">Requirement File *</label><input type="file" class="form-control" name="requirements_file" accept=".pdf,.jpg,.jpeg,.png" required><small class="form-text">PDF or image; maximum 5 MB.</small></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="submit">Upload Requirement</button></div></form></div></div></div>
+<?php endif; ?>
 <script>
-$(document).ready(function() {
-    $('.btn-register-course').on('click', function() {
-        const courseId = $(this).data('id');
-        confirmAction('Register for Training', 'Do you wish to submit a registration request for this training session?', 'Register', function() {
-            $.post('index.php?page=training_register', {
-                course_id: courseId,
-                csrf_token: '<?= generate_csrf_token(); ?>'
-            }, function(res) {
-                if (res.status === 'success') {
-                    showToast('success', res.message);
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    Swal.fire('Notice', res.message, res.status);
-                }
-            }, 'json');
-        });
-    });
+$(function(){
+ const csrf=<?= json_encode($csrf); ?>;
+ const postForm=(url,form,onSuccess)=>{$.ajax({url:url,type:'POST',data:new FormData(form),processData:false,contentType:false,dataType:'json',success:function(res){if(res.status==='success'){showToast('success',res.message);if(onSuccess)onSuccess(res);else setTimeout(()=>location.reload(),800)}else if(res.status==='warning')Swal.fire('Notice',res.message,'warning');else showErrorDialog(res.message)},error:function(xhr){const message=xhr.responseJSON&&xhr.responseJSON.message?xhr.responseJSON.message:'The request could not be completed.';showErrorDialog(message)}})};
+ setTimeout(function(){
+  const bindFilter=(tableId,filterId,column)=>{if(!document.getElementById(tableId)||!$.fn.DataTable.isDataTable('#'+tableId))return;const table=$('#'+tableId).DataTable();$('#'+filterId).on('change',function(){table.column(column).search(this.value?'^'+$.fn.dataTable.util.escapeRegex(this.value)+'$':'',true,false).draw()})};
+  bindFilter('trainingCoursesTable','courseStatusFilter',3);bindFilter('trainingParticipantsTable','participationStatusFilter',2);bindFilter('myTrainingTable','myTrainingStatusFilter',2);
+ },0);
+
+ <?php if($isAdmin): ?>
+ $('#trainingFormModal').on('hidden.bs.modal',function(){this.querySelector('form').reset();$('#trainingId').val('');$('#trainingFormTitle').text('Create Training');$('#trainingStatus').val('Draft')});
+ $(document).on('click','.btn-edit-training',function(){const c=$(this).data('course');$('#trainingFormTitle').text('Edit Training');$('#trainingId').val(c.id);$('#trainingTitle').val(c.title);$('#trainingStatus').val(c.status);$('#trainingDescription').val(c.description);$('#trainingCategory').val(c.category_id);$('#trainingTrainer').val(c.trainer_id||'');$('#trainingType').val(c.course_type);$('#trainingVenue').val(c.venue);$('#trainingDuration').val(c.duration_hours);$('#trainingCapacity').val(c.capacity);$('#trainingStart').val(c.start_date);$('#trainingEnd').val(c.end_date);$('#trainingBudget').val(c.budget);$('#trainingRequirements').val(c.requirements);$('#trainingTargetDepartment').val(c.target_department_id||'');$('#trainingTargetPosition').val(c.target_position_id||'');$('#trainingRequiredSkills').val(c.required_skills||'');$('#trainingPrerequisite').val(c.prerequisite_course_id||'');$('#trainingDifficulty').val(c.difficulty_level||'Intermediate');$('#trainingCertification').val(c.certification_provided||'');$('#trainingRetraining').val(c.retraining_months||0)});
+ $('#trainingForm').on('submit',function(e){e.preventDefault();if($('#trainingEnd').val()<$('#trainingStart').val()){Swal.fire('Invalid schedule','End date must be on or after start date.','warning');return}postForm($('#trainingId').val()?'index.php?page=training_update':'index.php?page=training_store',this)});
+ $(document).on('click','.btn-assign-training',function(){$('#assignCourseId').val($(this).data('id'));$('#assignCourseTitle').text($(this).data('title'))});
+ $('#assignTrainingForm').on('submit',function(e){e.preventDefault();postForm('index.php?page=training_assign',this)});
+ $(document).on('click','.btn-update-participant',function(){const r=$(this).data('registration');$('#participantId').val(r.id);$('#participantContext').text(r.first_name+' '+r.last_name+' - '+r.course_title);$('#participantStatus').val(r.status);$('#participantAttendance').val(r.attendance_percentage);$('#participantResult').val(r.assessment_result);$('#participantNotes').val(r.result_notes)});
+ $('#participantForm').on('submit',function(e){e.preventDefault();postForm('index.php?page=training_update_participant',this)});
+ $(document).on('click','.btn-cancel-training',function(){const id=$(this).data('id'),title=$(this).data('title');confirmAction('Cancel Training','Cancel and archive '+title+'? Active participants will be notified.','Cancel Training',function(){$.post('index.php?page=training_cancel',{id:id,csrf_token:csrf},function(res){if(res.status==='success'){showToast('success',res.message);setTimeout(()=>location.reload(),800)}else Swal.fire('Error',res.message,'error')},'json')})});
+ $(document).on('click','.btn-remind-training',function(){const id=$(this).data('id');confirmAction('Send Training Reminder','Notify every assigned or enrolled participant about this schedule?','Send Reminder',function(){$.post('index.php?page=training_remind',{id:id,csrf_token:csrf},function(res){if(res.status==='success')showToast('success',res.message);else Swal.fire('Error',res.message,'error')},'json')})});
+ <?php else: ?>
+ $(document).on('click','.btn-apply-training',function(){const id=$(this).data('id');confirmAction('Apply for Training','Submit your enrollment application for Admin/HR review?','Apply',function(){$.post('index.php?page=training_register',{course_id:id,csrf_token:csrf},function(res){if(res.status==='success'){showToast('success',res.message);setTimeout(()=>location.reload(),800)}else if(res.status==='warning')Swal.fire('Notice',res.message,'warning');else showErrorDialog(res.message)},'json')})});
+ $(document).on('click','.btn-confirm-training',function(){const id=$(this).data('id');confirmAction('Confirm Participation','Confirm that you will participate in this assigned training?','Confirm',function(){$.post('index.php?page=training_confirm',{registration_id:id,csrf_token:csrf},function(res){if(res.status==='success'){showToast('success',res.message);setTimeout(()=>location.reload(),800)}else Swal.fire('Error',res.message,'error')},'json')})});
+ $(document).on('click','.btn-requirement',function(){$('#requirementRegistrationId').val($(this).data('id'));$('#requirementCourseTitle').text($(this).data('title'))});
+ $('#requirementForm').on('submit',function(e){e.preventDefault();postForm('index.php?page=training_upload_requirement',this)});
+ <?php endif; ?>
 });
 </script>
-
 <?php require APP_PATH . 'Views/layouts/footer.php'; ?>

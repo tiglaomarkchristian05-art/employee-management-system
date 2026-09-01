@@ -1,54 +1,17 @@
 <?php
-
-require_once ROOT_PATH . 'core/Model.php';
-
+require_once ROOT_PATH.'core/Model.php';
 class Compliance extends Model {
-    protected $table = 'gov_contributions';
-
-    public function getContributionsWithDetails($month = null, $year = null, $employeeId = null) {
-        $sql = "SELECT c.*, e.first_name, e.last_name, e.employee_code, e.sss_no, e.philhealth_no, e.pagibig_no, e.tin_no, d.name as department_name
-                FROM gov_contributions c
-                JOIN employees e ON c.employee_id = e.id
-                LEFT JOIN departments d ON e.department_id = d.id";
-        
-        $params = [];
-        $conditions = [];
-        if ($month) {
-            $conditions[] = "c.period_month = ?";
-            $params[] = $month;
-        }
-        if ($year) {
-            $conditions[] = "c.period_year = ?";
-            $params[] = $year;
-        }
-        if ($employeeId) {
-            $conditions[] = "c.employee_id = ?";
-            $params[] = $employeeId;
-        }
-
-        if (!empty($conditions)) {
-            $sql .= " WHERE " . implode(" AND ", $conditions);
-        }
-
-        $sql .= " ORDER BY c.id DESC";
-        return $this->db->fetchAll($sql, $params);
-    }
-
-    public function getUpcomingDeadlines() {
-        return $this->db->fetchAll("SELECT * FROM gov_deadlines ORDER BY due_date ASC");
-    }
-
-    public function getBIR2316Data($employeeId, $year) {
-        $sql = "SELECT e.*, d.name as department_name, p.title as position_title,
-                       SUM(c.gross_salary) as total_gross,
-                       SUM(c.sss_employee + c.philhealth_employee + c.pagibig_employee) as total_non_taxable_statutory,
-                       SUM(c.bir_tax_withheld) as total_tax_withheld
-                FROM employees e
-                LEFT JOIN gov_contributions c ON e.id = c.employee_id AND c.period_year = ?
-                LEFT JOIN departments d ON e.department_id = d.id
-                LEFT JOIN positions p ON e.position_id = p.id
-                WHERE e.id = ?
-                GROUP BY e.id";
-        return $this->db->fetchOne($sql, [$year, $employeeId]);
-    }
+ protected $table='gov_contributions';
+ public function getRecords($employeeId=null){$sql="SELECT g.*,e.first_name,e.last_name,e.employee_code,d.name department_name FROM government_records g JOIN employees e ON e.id=g.employee_id LEFT JOIN departments d ON d.id=e.department_id";$p=[];if($employeeId){$sql.=" WHERE g.employee_id=?";$p[]=$employeeId;}return $this->db->fetchAll($sql." ORDER BY e.last_name,g.agency",$p);}
+ public function getRecord($id){return $this->db->fetchOne("SELECT g.*,e.first_name,e.last_name FROM government_records g JOIN employees e ON e.id=g.employee_id WHERE g.id=?",[$id]);}
+ public function getCorrections($employeeId=null){$sql="SELECT c.*,g.agency,g.record_number,e.first_name,e.last_name,e.employee_code FROM government_corrections c JOIN government_records g ON g.id=c.government_record_id JOIN employees e ON e.id=c.employee_id";$p=[];if($employeeId){$sql.=" WHERE c.employee_id=?";$p[]=$employeeId;}return $this->db->fetchAll($sql." ORDER BY c.id DESC",$p);}
+ public function getCorrection($id){return $this->db->fetchOne("SELECT c.*,g.agency,g.record_number FROM government_corrections c JOIN government_records g ON g.id=c.government_record_id WHERE c.id=?",[$id]);}
+ public function submitRecord($id,$value,$file,$userId){$r=$this->getRecord($id);if(!$r)throw new RuntimeException('Government record not found.');$this->db->update('government_records',['record_number'=>$value,'supporting_file'=>$file['path']??$r['supporting_file'],'original_name'=>$file['original']??$r['original_name'],'status'=>'Pending Verification','submitted_by'=>$userId,'admin_remarks'=>null],"id=?",[$id]);return $r;}
+ public function reviewRecord($id,$status,$remarks,$reviewer){$r=$this->getRecord($id);if(!$r)throw new RuntimeException('Government record not found.');$data=['status'=>$status,'admin_remarks'=>$remarks,'verified_by'=>$reviewer,'verified_at'=>$status==='Verified'?date('Y-m-d H:i:s'):null];$this->db->update('government_records',$data,"id=?",[$id]);if($status==='Verified')$this->syncEmployeeValue($r['employee_id'],$r['agency'],$r['record_number']);return $r;}
+ public function decideCorrection($id,$status,$remarks,$reviewer){$pdo=$this->db->getConnection();$pdo->beginTransaction();try{$c=$this->getCorrection($id);if(!$c||$c['status']!=='Pending')throw new RuntimeException('Pending correction request not found.');$this->db->update('government_corrections',['status'=>$status,'admin_remarks'=>$remarks,'reviewed_by'=>$reviewer,'reviewed_at'=>date('Y-m-d H:i:s')],"id=?",[$id]);if($status==='Approved'){$this->db->update('government_records',['record_number'=>$c['proposed_value'],'status'=>'Verified','admin_remarks'=>$remarks,'verified_by'=>$reviewer,'verified_at'=>date('Y-m-d H:i:s')],"id=?",[$c['government_record_id']]);$this->syncEmployeeValue($c['employee_id'],$c['agency'],$c['proposed_value']);}$pdo->commit();return $c;}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}}
+ private function syncEmployeeValue($employee,$agency,$value){$map=['SSS'=>'sss_no','PhilHealth'=>'philhealth_no','Pag-IBIG'=>'pagibig_no','TIN/BIR'=>'tin_no'];$this->db->update('employees',[$map[$agency]=>$value],"id=?",[$employee]);}
+ public function getSummary(){return $this->db->fetchOne("SELECT COUNT(DISTINCT CASE WHEN complete_count=4 THEN employee_id END) complete_records,SUM(sss_missing) missing_sss,SUM(ph_missing) missing_philhealth,SUM(pi_missing) missing_pagibig,SUM(tin_missing) missing_tin,SUM(pending_count) pending_verification,SUM(issue_count) compliance_issues FROM (SELECT employee_id,SUM(status='Verified') complete_count,MAX(agency='SSS' AND status='Missing') sss_missing,MAX(agency='PhilHealth' AND status='Missing') ph_missing,MAX(agency='Pag-IBIG' AND status='Missing') pi_missing,MAX(agency='TIN/BIR' AND status='Missing') tin_missing,SUM(status IN ('Submitted','Pending Verification')) pending_count,SUM(status IN ('Missing','Rejected','Needs Correction')) issue_count FROM government_records GROUP BY employee_id)x");}
+ public function getContributionsWithDetails($month=null,$year=null,$employeeId=null){$sql="SELECT c.*,e.first_name,e.last_name,e.employee_code,e.tin_no,d.name department_name FROM gov_contributions c JOIN employees e ON e.id=c.employee_id LEFT JOIN departments d ON d.id=e.department_id";$w=[];$p=[];if($month){$w[]='c.period_month=?';$p[]=$month;}if($year){$w[]='c.period_year=?';$p[]=$year;}if($employeeId){$w[]='c.employee_id=?';$p[]=$employeeId;}if($w)$sql.=' WHERE '.implode(' AND ',$w);return $this->db->fetchAll($sql.' ORDER BY c.period_year DESC,c.period_month DESC,c.id DESC',$p);}
+ public function getUpcomingDeadlines(){return $this->db->fetchAll("SELECT * FROM gov_deadlines ORDER BY due_date");}
+ public function getBIR2316Data($employeeId,$year){return $this->db->fetchOne("SELECT e.*,d.name department_name,p.title position_title,SUM(c.gross_salary) total_gross,SUM(c.sss_employee+c.philhealth_employee+c.pagibig_employee) total_non_taxable_statutory,SUM(c.bir_tax_withheld) total_tax_withheld FROM employees e LEFT JOIN gov_contributions c ON e.id=c.employee_id AND c.period_year=? LEFT JOIN departments d ON e.department_id=d.id LEFT JOIN positions p ON e.position_id=p.id WHERE e.id=? GROUP BY e.id",[$year,$employeeId]);}
 }
