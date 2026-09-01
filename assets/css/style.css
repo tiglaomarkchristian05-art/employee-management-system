@@ -200,8 +200,8 @@ html{scrollbar-width:auto;scrollbar-color:#7d7d7d #f1f1f1}
 /* Navigation-inspired workflow toast and compact error dialog. */
 .core3-toast{min-height:4.5rem!important;padding:.75rem 1rem!important;border:1px solid #dbe3ff!important;border-left:4px solid #5b4df5!important;border-radius:1.1rem!important;background:#f1f3ff!important;box-shadow:0 10px 26px rgba(67,56,202,.14)!important}
 .core3-toast-icon{width:2.45rem!important;height:2.45rem!important;min-width:2.45rem!important;margin:0 .8rem 0 0!important;border:0!important;border-radius:50%!important;background:#fff!important;color:#5546e8!important}
-.core3-toast-icon.swal2-success .swal2-success-ring{border-color:#d8d1ff!important}
-.core3-toast-icon.swal2-success [class^=swal2-success-line]{background:#5b4df5!important}
+.core3-toast-icon> :not(.swal2-icon-content){display:none!important}
+.core3-toast-icon.swal2-success .swal2-success-ring,.core3-toast-icon.swal2-success [class^=swal2-success-line]{display:none!important}
 .core3-toast-title{margin:0!important;padding:0!important;color:#3730a3!important;font-size:.8rem!important;font-weight:700!important;line-height:1.35!important}
 .core3-toast-close{align-self:center!important;margin:0 0 0 .65rem!important;color:#94a3b8!important;font-size:1.6rem!important}
 .core3-toast-success,.core3-toast-error,.core3-toast-warning{border-left-color:#5b4df5!important}
@@ -214,7 +214,7 @@ html{scrollbar-width:auto;scrollbar-color:#7d7d7d #f1f1f1}
 .core3-error-close{right:1rem!important;top:1rem!important;color:#64748b!important}
 .core3-toast-icon{display:grid!important;place-items:center!important;overflow:hidden!important}
 .core3-toast-icon .swal2-icon-content{display:grid!important;place-items:center!important;width:100%!important;height:100%!important;font-size:1rem!important;line-height:1!important}
-.core3-toast-icon .swal2-icon-content i{display:block!important;margin:0!important;font-size:1.2rem!important;line-height:1!important;transform:none!important}
+.core3-toast-icon .swal2-icon-content i{display:block!important;margin:0!important;font-size:1.05rem!important;line-height:1!important;transform:none!important}
 .core3-toast-title{display:flex!important;align-items:center!important;justify-content:center!important;align-self:stretch!important;width:100%!important;text-align:center!important}
 .core3-status-dialog{width:min(23.5rem,calc(100vw - 2rem))!important;padding:2.25rem 1.75rem 1.75rem!important;border-radius:1.5rem!important;text-align:center!important}
 .core3-status-icon{display:grid!important;place-items:center!important;width:4.25rem!important;height:4.25rem!important;margin:0 auto 1.25rem!important;border:0!important;border-radius:50%!important;font-size:1.55rem!important}
