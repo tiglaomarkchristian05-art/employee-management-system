@@ -172,6 +172,8 @@ class AdminController extends Controller {
         }
 
         $empId = !empty($_POST['employee_id']) ? intval($_POST['employee_id']) : null;
+        $mfaEmail = trim((string)($_POST['mfa_email'] ?? ''));
+        if ($mfaEmail !== '' && !filter_var($mfaEmail, FILTER_VALIDATE_EMAIL)) $this->json('error', 'Enter a valid MFA email address.');
 
         if (empty($username)) {
             $this->json('error', 'Username is required.');
@@ -182,8 +184,13 @@ class AdminController extends Controller {
         }
 
         $userModel = new User();
-        if (!$userModel->db->fetchOne("SELECT id FROM roles WHERE id = ?", [$roleId])) {
+        $selectedRole = $userModel->db->fetchOne("SELECT id, name FROM roles WHERE id = ?", [$roleId]);
+        if (!$selectedRole) {
             $this->json('error', 'Invalid account role.');
+        }
+        $linkedEmployee = $empId ? $userModel->db->fetchOne("SELECT email FROM employees WHERE id=?", [$empId]) : null;
+        if ($mfaEmail === '' && empty($linkedEmployee['email'])) {
+            $this->json('error', 'A registered MFA email is required for every user account.');
         }
         if ($empId && $userModel->db->fetchOne("SELECT id FROM users WHERE employee_id = ?", [$empId])) {
             $this->json('error', 'This employee already has a linked user account.');
@@ -199,7 +206,8 @@ class AdminController extends Controller {
             'password'    => $hash,
             'role_id'     => $roleId,
             'employee_id' => $empId,
-            'is_active'   => 1
+            'is_active'   => 1,
+            'mfa_email'   => $mfaEmail ?: null
         ]);
 
         AuditLogger::log('CREATE_USER', 'System Admin', "Created new user account '{$username}'");
@@ -225,9 +233,11 @@ class AdminController extends Controller {
 
         $newStatus = $u['is_active'] ? 0 : 1;
         $userModel->update($userId, ['is_active' => $newStatus]);
+        $userModel->invalidateSessions($userId);
 
         $statusStr = $newStatus ? 'enabled' : 'disabled';
-        AuditLogger::log('TOGGLE_USER_STATUS', 'System Admin', "User ID {$userId} ({$u['username']}) was {$statusStr}");
+        AuditLogger::log($newStatus ? 'ACCOUNT_ENABLED' : 'ACCOUNT_DISABLED', 'Account Security', "User ID {$userId} was {$statusStr}.");
+        AuditLogger::log('SESSIONS_INVALIDATED', 'Account Security', "Sessions invalidated for user ID {$userId} after account status change.");
         $this->json('success', "User account '{$u['username']}' is now {$statusStr}!");
     }
 
@@ -241,6 +251,8 @@ class AdminController extends Controller {
         $userId = intval($_POST['user_id'] ?? 0);
         $roleId = intval($_POST['role_id'] ?? 4);
         $empId  = !empty($_POST['employee_id']) ? intval($_POST['employee_id']) : null;
+        $mfaEmail = trim((string)($_POST['mfa_email'] ?? ''));
+        if ($mfaEmail !== '' && !filter_var($mfaEmail, FILTER_VALIDATE_EMAIL)) $this->json('error', 'Enter a valid MFA email address.');
 
         if ($userId <= 0) {
             $this->json('error', 'Invalid user ID.');
@@ -250,15 +262,32 @@ class AdminController extends Controller {
         $user = $this->loadManagedUser($userId);
         $this->assertCanManageUser($user, 'edit');
         if (Auth::hasRole(['HR Manager']) && !Auth::hasRole(['Super Admin'])) $roleId = 4;
-        if (!$userModel->db->fetchOne("SELECT id FROM roles WHERE id = ?", [$roleId])) $this->json('error', 'Invalid account role.');
+        $selectedRole = $userModel->db->fetchOne("SELECT id, name FROM roles WHERE id = ?", [$roleId]);
+        if (!$selectedRole) $this->json('error', 'Invalid account role.');
+        $linkedEmployee = $empId ? $userModel->db->fetchOne("SELECT email FROM employees WHERE id=?", [$empId]) : null;
+        if ($mfaEmail === '' && empty($linkedEmployee['email'])) $this->json('error', 'A registered MFA email is required for every user account.');
         if ($empId && $userModel->db->fetchOne("SELECT id FROM users WHERE employee_id = ? AND id <> ?", [$empId, $userId])) {
             $this->json('error', 'This employee already has a linked user account.');
         }
 
+        $roleChanged = (int)$user['role_id'] !== $roleId;
+        $mfaChanged = (string)($user['mfa_email'] ?? '') !== $mfaEmail;
         $userModel->update($userId, [
             'role_id'     => $roleId,
-            'employee_id' => $empId
+            'employee_id' => $empId,
+            'mfa_email'   => $mfaEmail ?: null
         ]);
+
+        if ($roleChanged) {
+            $userModel->invalidateSessions($userId);
+            AuditLogger::log('ROLE_CHANGED', 'Account Security', "Role changed for user ID {$userId}.", null, ['record_type'=>'user','record_id'=>$userId,'old_value'=>['role_id'=>(int)$user['role_id']],'new_value'=>['role_id'=>$roleId]]);
+            AuditLogger::log('SESSIONS_INVALIDATED', 'Account Security', "Sessions invalidated for user ID {$userId} after role change.");
+        }
+        if ($mfaChanged) {
+            $userModel->invalidateSessions($userId);
+            AuditLogger::log('MFA_SETTINGS_CHANGED', 'Account Security', "MFA delivery settings changed for user ID {$userId}.");
+            AuditLogger::log('SESSIONS_INVALIDATED', 'Account Security', "Sessions invalidated for user ID {$userId} after MFA settings change.");
+        }
 
         AuditLogger::log('UPDATE_USER', 'System Admin', "Updated role and employee mapping for user '{$user['username']}'");
         $this->json('success', "User account '{$user['username']}' updated successfully!");
@@ -313,8 +342,10 @@ class AdminController extends Controller {
 
         $hash = password_hash($newPass, PASSWORD_BCRYPT);
         $userModel->update($userId, ['password' => $hash]);
+        $userModel->invalidateSessions($userId);
 
-        AuditLogger::log('RESET_PASSWORD', 'System Admin', "Reset password for user '{$user['username']}'");
+        AuditLogger::log('PASSWORD_RESET', 'Account Security', "Password reset for user ID {$userId}.");
+        AuditLogger::log('SESSIONS_INVALIDATED', 'Account Security', "All sessions invalidated for user ID {$userId} after password reset.");
         $this->json('success', "Password for '{$user['username']}' was reset successfully.");
     }
 

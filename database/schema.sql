@@ -81,9 +81,29 @@ CREATE TABLE IF NOT EXISTS `users` (
   `employee_id` INT NULL,
   `is_active` TINYINT(1) DEFAULT 1,
   `last_login` DATETIME NULL,
+  `failed_login_attempts` INT UNSIGNED NOT NULL DEFAULT 0,
+  `locked_until` DATETIME NULL,
+  `last_failed_login_at` DATETIME NULL,
+  `auth_version` INT UNSIGNED NOT NULL DEFAULT 1,
+  `mfa_email` VARCHAR(190) NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`),
   FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `mfa_login_challenges` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `otp_hash` VARCHAR(255) NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  `max_attempts` TINYINT UNSIGNED NOT NULL DEFAULT 5,
+  `resend_count` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  `last_sent_at` DATETIME NOT NULL,
+  `consumed_at` DATETIME NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_mfa_user_active` (`user_id`, `consumed_at`, `expires_at`),
+  CONSTRAINT `fk_mfa_login_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Subsystem 1: Training & Development (LMS)

@@ -42,3 +42,20 @@ The startup command runs `scripts/init-database.php` before Apache. It creates m
 4. Upload and download a disposable test document.
 5. Restart the service and confirm the uploaded file and database record remain.
 6. Export a live SQL backup from **System → Database Backup**.
+# Authentication security environment
+
+Every user sign-in requires a one-time code delivered to the account's MFA email or linked employee email. Configure these environment variables in HostForge before deploying this security phase:
+
+```text
+MAIL_TRANSPORT=smtp
+SMTP_HOST=<SMTP server>
+SMTP_PORT=587
+SMTP_ENCRYPTION=tls
+SMTP_USERNAME=<SMTP account>
+SMTP_PASSWORD=<SMTP password or app password>
+SMTP_FROM_EMAIL=<verified sender address>
+SMTP_FROM_NAME=Moses HRMS Security
+MFA_ADMIN_EMAIL=<primary Super Admin recipient>
+```
+
+The application fails closed: if a user's registered email or SMTP delivery is unavailable, it does not grant a session. `MFA_ADMIN_EMAIL` bootstraps the primary Super Admin recipient; employees and other linked users receive OTPs through their own employee or account MFA email. The deployment initializer automatically applies `database/security_hardening.sql`.

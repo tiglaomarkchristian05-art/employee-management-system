@@ -21,7 +21,7 @@
     <h1 id="loginTitle">Sign In</h1>
     <p>Great Solomon Manpower Services Inc.</p>
    </header>
-   <div class="auth-error" id="alertBox" role="alert"><span class="material-symbols-outlined">error</span><span id="alertMsg">Invalid credentials or inactive account.</span></div>
+   <div class="auth-error" id="alertBox" role="alert"><span class="material-symbols-outlined">error</span><span id="alertMsg">Invalid credentials.</span></div>
    <form id="loginForm" class="auth-form">
     <?= csrf_input(); ?>
     <label for="username">Email Address</label>

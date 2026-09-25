@@ -74,4 +74,14 @@ $pdo->exec(deploymentSql($root . '/database/separation_clearance_workflow_patch.
 $pdo->exec(deploymentSql($root . '/database/phase11_notifications.sql'));
 $pdo->exec(deploymentSql($root . '/database/phase12_audit_trail.sql'));
 $pdo->exec(deploymentSql($root . '/database/phase15_ai_training.sql'));
+$pdo->exec(deploymentSql($root . '/database/security_hardening.sql'));
+$bootstrapMfaEmail = trim((string)(getenv('MFA_ADMIN_EMAIL') ?: ''));
+if ($bootstrapMfaEmail !== '') {
+    if (!filter_var($bootstrapMfaEmail, FILTER_VALIDATE_EMAIL)) {
+        fwrite(STDERR, "MFA_ADMIN_EMAIL must be a valid email address.\n");
+        exit(1);
+    }
+    $statement = $pdo->prepare("UPDATE users SET mfa_email=? WHERE username='admin' AND (mfa_email IS NULL OR mfa_email='')");
+    $statement->execute([$bootstrapMfaEmail]);
+}
 fwrite(STDOUT, "Database schema is ready.\n");

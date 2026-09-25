@@ -2,6 +2,7 @@
 require_once ROOT_PATH . 'core/Controller.php';
 require_once APP_PATH . 'Models/Employee.php';
 require_once APP_PATH . 'Models/Admin.php';
+require_once APP_PATH . 'Models/User.php';
 
 class EmployeeController extends Controller {
     public function index() {
@@ -191,6 +192,14 @@ class EmployeeController extends Controller {
         ];
 
         $employeeModel->update($id, $data);
+        if (strcasecmp((string)$data['email'], (string)$existing['email']) !== 0) {
+            $linkedUser = $employeeModel->db->fetchOne("SELECT id FROM users WHERE employee_id=? AND (mfa_email IS NULL OR mfa_email='')", [$id]);
+            if ($linkedUser) {
+                (new User())->invalidateSessions($linkedUser['id']);
+                AuditLogger::log('MFA_SETTINGS_CHANGED', 'Account Security', "Linked employee email changed for user ID {$linkedUser['id']}.");
+                AuditLogger::log('SESSIONS_INVALIDATED', 'Account Security', "Sessions invalidated for user ID {$linkedUser['id']} after MFA email change.");
+            }
+        }
         AuditLogger::log('UPDATE_EMPLOYEE', 'Employee Directory', "Updated employee record for {$data['first_name']} {$data['last_name']} (ID: {$id})");
 
         $this->json('success', 'Employee profile updated successfully!');

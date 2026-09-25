@@ -27,6 +27,7 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                         <th>Username</th>
                         <th>Linked Employee</th>
                         <th>Assigned Role</th>
+                        <th>MFA</th>
                         <th>Status</th>
                         <th>Last Login</th>
                         <?php if ($isHRAdmin): ?>
@@ -40,6 +41,7 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                         <td class="fw-bold text-light"><code><?= htmlspecialchars($u['username']); ?></code></td>
                         <td><?= htmlspecialchars($u['first_name'] ? $u['first_name'] . ' ' . $u['last_name'] : 'System Admin'); ?></td>
                         <td><span class="badge badge-soft-primary"><?= htmlspecialchars($u['role_name']); ?></span></td>
+                        <td><span class="badge <?= !empty($u['effective_mfa_email'])?'badge-soft-success':'badge-soft-danger'; ?>"><?= !empty($u['effective_mfa_email'])?'Required / Ready':'Required / Missing email'; ?></span></td>
                         <td>
                             <?php if ($u['is_active']): ?>
                                 <span class="badge badge-soft-success">Active</span>
@@ -58,6 +60,7 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                                     data-username="<?= htmlspecialchars($u['username']); ?>"
                                     data-role="<?= $u['role_id']; ?>" 
                                     data-employee="<?= $u['employee_id'] ?? ''; ?>" 
+                                    data-mfa-email="<?= htmlspecialchars($u['mfa_email'] ?? ''); ?>"
                                     title="Edit User Role & Mapping">
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </button>
@@ -115,6 +118,12 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label text-secondary fw-bold">MFA Email</label>
+                        <input type="email" class="form-control" name="mfa_email" placeholder="Required when no employee email is linked">
+                        <small class="text-secondary">If blank, the linked employee email is used.</small>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label text-secondary fw-bold">Link to Employee Profile (Optional)</label>
                         <select class="form-select" name="employee_id">
                             <option value="">-- No Linked Employee (Admin Only) --</option>
@@ -156,6 +165,11 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                                 <option value="<?= $r['id']; ?>"><?= htmlspecialchars($r['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-bold">MFA Email</label>
+                        <input type="email" class="form-control" name="mfa_email" id="edit_mfa_email" placeholder="Uses linked employee email when blank">
                     </div>
 
                     <div class="mb-3">
@@ -282,11 +296,13 @@ document.addEventListener('DOMContentLoaded', function() {
         var username = $(this).data('username');
         var roleId = $(this).data('role');
         var empId = $(this).data('employee');
+        var mfaEmail = $(this).data('mfa-email');
 
         $('#edit_user_id').val(userId);
         $('#edit_username').val(username);
         $('#edit_role_id').val(roleId);
         $('#edit_employee_id').val(empId);
+        $('#edit_mfa_email').val(mfaEmail);
 
         openModal('editUserModal');
     });

@@ -91,11 +91,22 @@ class Auth {
             redirect(BASE_URL . '?page=login');
         }
 
+        $lastActivity = (int)($_SESSION['last_activity_at'] ?? 0);
+        $role = $_SESSION['role_name'] ?? 'Employee';
+        $idleLimit = in_array($role, ['Super Admin', 'HR Manager', 'Admin'], true)
+            ? SESSION_ADMIN_IDLE_SECONDS
+            : SESSION_EMPLOYEE_IDLE_SECONDS;
+        if ($lastActivity > 0 && (time() - $lastActivity) >= $idleLimit) {
+            AuditLogger::log('SESSION_TIMEOUT', 'Account Security', 'Session ended after the permitted inactivity period.');
+            self::endSession();
+            self::authenticationRequired('Your session expired due to inactivity. Please log in again.');
+        }
+
         $db = Database::getInstance();
         $account = $db->fetchOne(
-            "SELECT u.id, u.username, u.role_id, u.employee_id, u.is_active,
+            "SELECT u.id, u.username, u.role_id, u.employee_id, u.is_active, u.auth_version,
                     r.name AS role_name, r.permissions,
-                    e.first_name, e.last_name, e.email, e.photo,
+                    e.first_name, e.last_name, COALESCE(NULLIF(u.mfa_email,''),e.email) AS email, e.photo,
                     d.name AS department_name
              FROM users u
              JOIN roles r ON r.id = u.role_id
@@ -106,8 +117,13 @@ class Auth {
         );
 
         if (!$account || !(int)$account['is_active']) {
-            self::clearSession();
-            self::deny('This account is inactive or no longer available.');
+            self::endSession();
+            self::authenticationRequired('Your session is no longer valid. Please log in again.');
+        }
+
+        if (!isset($_SESSION['auth_version']) || (int)$_SESSION['auth_version'] !== (int)$account['auth_version']) {
+            self::endSession();
+            self::authenticationRequired('Your account security settings changed. Please log in again.');
         }
 
         $_SESSION['username'] = $account['username'];
@@ -119,6 +135,8 @@ class Auth {
         $_SESSION['full_name'] = !empty($account['first_name']) ? trim($account['first_name'] . ' ' . $account['last_name']) : $account['username'];
         $_SESSION['department_name'] = $account['department_name'] ?? 'General';
         $_SESSION['avatar'] = $account['photo'] ?? 'default.png';
+        $_SESSION['auth_version'] = (int)$account['auth_version'];
+        $_SESSION['last_activity_at'] = time();
     }
 
     public static function requireRole($roles) {
@@ -159,12 +177,21 @@ class Auth {
         }
     }
 
-    private static function clearSession() {
+    public static function endSession() {
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
         }
         session_destroy();
+    }
+
+    private static function authenticationRequired($message) {
+        http_response_code(401);
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        if ($isAjax || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+            json_response('error', $message, ['redirect' => BASE_URL . '?page=login&session=invalidated'], 401);
+        }
+        redirect(BASE_URL . '?page=login&session=invalidated');
     }
 }

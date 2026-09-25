@@ -33,6 +33,12 @@ switch ($page) {
     case 'logout':
         (new AuthController())->logout();
         break;
+    case 'mfa_verify':
+        (new AuthController())->verifyMfa();
+        break;
+    case 'mfa_resend':
+        (new AuthController())->resendMfa();
+        break;
     case 'dashboard':
         (new DashboardController())->index();
         break;

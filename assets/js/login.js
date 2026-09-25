@@ -128,10 +128,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         resetBtnState();
                     }
                 },
-                error: function () {
+                error: function (xhr) {
                     if (alertBox && alertMsg) {
                         alertBox.style.display = 'flex';
-                        alertMsg.textContent = 'Connection error. Please try again.';
+                        alertMsg.textContent = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Connection error. Please try again.';
                     }
                     resetBtnState();
                 }
