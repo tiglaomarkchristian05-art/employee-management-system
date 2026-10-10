@@ -3,8 +3,8 @@ FROM php:8.3-apache
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libonig-dev \
-    && docker-php-ext-install pdo_mysql mbstring \
+    && apt-get install -y --no-install-recommends libonig-dev libxml2-dev \
+    && docker-php-ext-install pdo_mysql mbstring dom \
     && a2enmod rewrite headers \
     && sed -ri 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
     && printf 'expose_php=Off\ndisplay_errors=Off\nlog_errors=On\n' > /usr/local/etc/php/conf.d/zz-production.ini \
