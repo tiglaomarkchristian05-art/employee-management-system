@@ -3,7 +3,7 @@ FROM php:8.3-apache
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libonig-dev libxml2-dev \
+    && apt-get install -y --no-install-recommends libonig-dev libxml2-dev unzip \
     && docker-php-ext-install pdo_mysql mbstring dom \
     && a2enmod rewrite headers \
     && sed -ri 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
