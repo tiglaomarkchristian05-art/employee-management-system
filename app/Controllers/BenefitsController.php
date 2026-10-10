@@ -13,15 +13,16 @@ class BenefitsController extends Controller {
 
         $employeeModel = new Employee();
         $user = Auth::user();
-        $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
-        $empId = $isHRAdmin ? null : $user['employee_id'];
+        $isHRAdmin = Auth::isHR();
+        $empId = $isHRAdmin ? null : Auth::employeeId();
 
         $data = [
             'is_admin'=>$isHRAdmin,'plans'=>$this->benefits->getPlans(!$isHRAdmin),
             'claims'=>$this->benefits->getClaimsWithDetails($empId),
             'enrollments'=>$empId?$this->benefits->getEmployeeEnrollments($empId):[],
             'employees'=>$isHRAdmin?$employeeModel->getAllWithDetails():[],
-            'departments'=>$isHRAdmin?$this->benefits->db->fetchAll("SELECT id,name FROM departments ORDER BY name"):[]
+            'departments'=>$isHRAdmin?$this->benefits->db->fetchAll("SELECT id,name FROM departments ORDER BY name"):[],
+            'positions'=>$isHRAdmin?$this->benefits->db->fetchAll("SELECT id,title FROM positions ORDER BY title"):[]
         ];
 
         $this->view('benefits/index', $data);
@@ -33,8 +34,8 @@ class BenefitsController extends Controller {
         $loanModel = new Loan();
         $employeeModel = new Employee();
         $user = Auth::user();
-        $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
-        $empId = $isHRAdmin ? null : $user['employee_id'];
+        $isHRAdmin = Auth::isHR();
+        $empId = $isHRAdmin ? null : Auth::employeeId();
 
         $data = [
             'loans'     => $loanModel->getLoansWithDetails($empId),
@@ -55,7 +56,7 @@ class BenefitsController extends Controller {
         }
 
         $user = Auth::user();
-        $empId = Auth::isAdmin() ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
+        $empId = Auth::isHR() ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
         if ($empId <= 0) $this->json('error', 'A valid employee is required.');
 
         $benefitId = intval($_POST['benefit_id'] ?? 1);
@@ -67,7 +68,7 @@ class BenefitsController extends Controller {
             $this->json('error', 'Please provide a valid claim amount and description.');
         }
 
-        $status = Auth::hasRole(['Super Admin', 'HR Manager']) ? 'Approved' : 'Pending';
+        $status = Auth::isHR() ? 'Approved' : 'Pending';
 
         $benefitModel = new Benefit();
         $benefitModel->db->insert('benefit_claims', [
@@ -91,7 +92,7 @@ class BenefitsController extends Controller {
         }
 
         $user = Auth::user();
-        $empId = Auth::isAdmin() ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
+        $empId = Auth::isHR() ? intval($_POST['employee_id'] ?? 0) : Auth::employeeId();
         if ($empId <= 0) $this->json('error', 'A valid employee is required.');
 
         $loanType = sanitize_input($_POST['loan_type'] ?? 'Emergency');
@@ -107,7 +108,7 @@ class BenefitsController extends Controller {
         $totalPayable = $principal + $totalInterest;
         $monthly = $totalPayable / $term;
 
-        $status = Auth::hasRole(['Super Admin', 'HR Manager']) ? 'Active' : 'Pending';
+        $status = Auth::isHR() ? 'Active' : 'Pending';
 
         $loanModel = new Loan();
         $loanModel->create([
@@ -127,7 +128,7 @@ class BenefitsController extends Controller {
     }
 
     public function adminRequestLoan() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -170,7 +171,7 @@ class BenefitsController extends Controller {
     }
 
     public function adminSubmitClaim() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -206,7 +207,7 @@ class BenefitsController extends Controller {
     }
 
     public function adminGrantAllowance() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -252,7 +253,7 @@ class BenefitsController extends Controller {
     }
 
     public function updateClaimStatus() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
 
@@ -279,7 +280,7 @@ class BenefitsController extends Controller {
     }
 
     public function updateLoanStatus() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
 
@@ -306,7 +307,7 @@ class BenefitsController extends Controller {
     }
 
     public function deleteClaim() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
 
@@ -325,7 +326,7 @@ class BenefitsController extends Controller {
     }
 
     public function deleteLoan() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
 
@@ -344,7 +345,7 @@ class BenefitsController extends Controller {
     }
 
     public function addLoanPayment() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -387,7 +388,7 @@ class BenefitsController extends Controller {
     }
 
     public function createAllowance() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -417,7 +418,7 @@ class BenefitsController extends Controller {
     }
 
     public function assignAllowance() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -446,7 +447,7 @@ class BenefitsController extends Controller {
     public function storeBenefit(){$this->adminBenefitPost();try{$data=$this->benefitInput();$data['created_by']=Auth::user()['id'];$id=$this->benefits->create($data);AuditLogger::log('CREATE_BENEFIT','Benefits Management',"Created benefit {$data['name']} (ID: {$id})",null,['record_type'=>'benefit','record_id'=>$id,'new_value'=>['name'=>$data['name'],'type'=>$data['type'],'is_active'=>$data['is_active']]]);$this->json('success','Benefit type created.',['id'=>(int)$id]);}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}}
     public function updateBenefit(){$this->adminBenefitPost();$id=(int)($_POST['id']??0);if(!$this->benefits->getPlan($id))$this->json('error','Benefit not found.',[],404);try{$this->benefits->update($id,$this->benefitInput());AuditLogger::log('UPDATE_BENEFIT','Benefits Management',"Updated benefit ID {$id}");$this->json('success','Benefit updated.');}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}}
     public function toggleBenefit(){$this->adminBenefitPost();$id=(int)($_POST['id']??0);$b=$this->benefits->getPlan($id);if(!$b)$this->json('error','Benefit not found.',[],404);$active=$b['is_active']?0:1;$this->benefits->update($id,['is_active'=>$active]);AuditLogger::log('TOGGLE_BENEFIT','Benefits Management',"Benefit ID {$id} ".($active?'activated':'deactivated'));$this->json('success','Benefit '.($active?'activated.':'deactivated.'));}
-    private function benefitInput(){$name=sanitize_input($_POST['name']??'');$type=sanitize_input($_POST['type']??'Health');$max=(float)($_POST['max_amount']??0);$start=$_POST['application_start']??'';$end=$_POST['application_end']??'';if($name===''||!in_array($type,['Health','Allowance','Incentive','Bonus'],true))throw new RuntimeException('Valid benefit name and type are required.');if($max<0)throw new RuntimeException('Maximum amount cannot be negative.');if($start&&$end&&strtotime($end)<strtotime($start))throw new RuntimeException('Application end date must follow its start date.');$deps=array_filter(array_map('intval',(array)($_POST['eligible_department_ids']??[])));$statuses=array_intersect((array)($_POST['eligible_employment_statuses']??['Active','Probationary']),['Active','Probationary','Resigned','Terminated','Retired']);return ['name'=>$name,'type'=>$type,'description'=>trim($_POST['description']??''),'eligibility_rules'=>trim($_POST['eligibility_rules']??''),'required_documents'=>trim($_POST['required_documents']??''),'max_amount'=>$max?:null,'coverage_amount'=>$max,'application_start'=>$start?:null,'application_end'=>$end?:null,'minimum_tenure_months'=>max(0,(int)($_POST['minimum_tenure_months']??0)),'eligible_employment_statuses'=>implode(',',$statuses)?:'Active,Probationary','eligible_department_ids'=>$deps?implode(',',$deps):null,'is_active'=>!empty($_POST['is_active'])?1:0];}
+    private function benefitInput(){$name=sanitize_input($_POST['name']??'');$type=sanitize_input($_POST['type']??'Health');$description=trim($_POST['description']??'');$purpose=trim($_POST['purpose']??$description);$rules=trim($_POST['eligibility_rules']??'');$max=(float)($_POST['max_amount']??0);$start=$_POST['application_start']??'';$end=$_POST['application_end']??'';if($name===''||$purpose===''||$rules===''||!in_array($type,['Health','Allowance','Incentive','Bonus'],true))throw new RuntimeException('Benefit name, purpose/description, eligibility rules, and valid type are required.');if($max<0)throw new RuntimeException('Maximum amount cannot be negative.');if($start&&$end&&strtotime($end)<strtotime($start))throw new RuntimeException('Application end date must follow its start date.');$deps=array_filter(array_map('intval',(array)($_POST['eligible_department_ids']??[])));$positions=array_filter(array_map('intval',(array)($_POST['eligible_position_ids']??[])));$statuses=array_intersect((array)($_POST['eligible_employment_statuses']??['Active','Probationary']),['Active','Probationary','Resigned','Terminated','Retired']);return ['name'=>$name,'purpose'=>$purpose,'type'=>$type,'description'=>$description,'eligibility_rules'=>$rules,'required_documents'=>trim($_POST['required_documents']??''),'max_amount'=>$max?:null,'coverage_amount'=>$max,'application_start'=>$start?:null,'application_end'=>$end?:null,'minimum_tenure_months'=>max(0,(int)($_POST['minimum_tenure_months']??0)),'eligible_employment_statuses'=>implode(',',$statuses)?:'Active,Probationary','eligible_department_ids'=>$deps?implode(',',$deps):null,'eligible_position_ids'=>$positions?implode(',',$positions):null,'approval_required'=>isset($_POST['approval_required'])?(!empty($_POST['approval_required'])?1:0):1,'is_active'=>!empty($_POST['is_active'])?1:0];}
 
     public function applyBenefit(){$this->employeeBenefitPost();$emp=Auth::employeeId();$benefit=(int)($_POST['benefit_id']??0);$type=sanitize_input($_POST['claim_type']??'Benefit Application');$amount=(float)($_POST['amount']??0);if($amount<=0||$type==='')$this->json('error','Provide a valid amount and description.',[],422);[$ok,$reason]=$this->benefits->eligibility($benefit,$emp);if(!$ok)$this->json('error',$reason,[],422);if($this->benefits->db->fetchOne("SELECT id FROM benefit_claims WHERE employee_id=? AND benefit_id=? AND status IN ('Submitted','Under Review','Returned','Approved','Processing','Released')",[$emp,$benefit]))$this->json('error','You already have an active application for this benefit.',[],422);try{$file=$this->benefitFile();$id=$this->benefits->apply($benefit,$emp,['claim_type'=>$type,'amount'=>$amount,'receipt_number'=>sanitize_input($_POST['receipt_number']??''),'application_notes'=>trim($_POST['application_notes']??''),'requirement_file'=>$file['path'],'original_name'=>$file['original']]);$this->notifications->createForAdmins('New benefit application','Employee ID '.$emp.' submitted a benefit application.','info','index.php?page=benefits','benefits',$id);AuditLogger::log('SUBMIT_BENEFIT_APPLICATION','Benefits Management',"Submitted application ID {$id}");$this->json('success','Benefit application submitted.',['id'=>(int)$id]);}catch(Throwable $e){if(isset($file))$this->removeBenefitFile($file['path']);$this->json('error',$e->getMessage(),[],422);}}
     public function resubmitBenefit(){$this->employeeBenefitPost();$id=(int)($_POST['id']??0);$current=$this->benefits->getClaim($id);if(!$current||$current['employee_id']!=Auth::employeeId()||$current['status']!=='Returned')$this->json('error','Returned application not found.',[],422);try{$file=$this->benefitFile();$old=$this->benefits->resubmit($id,Auth::employeeId(),['claim_type'=>sanitize_input($_POST['claim_type']??'Benefit Application'),'amount'=>(float)($_POST['amount']??0),'receipt_number'=>sanitize_input($_POST['receipt_number']??''),'application_notes'=>trim($_POST['application_notes']??''),'requirement_file'=>$file['path'],'original_name'=>$file['original']]);$this->removeBenefitFile($old['requirement_file']);$this->notifications->createForAdmins('Benefit application resubmitted','Employee ID '.Auth::employeeId().' resubmitted application ID '.$id.'.','info','index.php?page=benefits','benefits',$id);AuditLogger::log('RESUBMIT_BENEFIT_APPLICATION','Benefits Management',"Resubmitted application ID {$id}");$this->json('success','Application resubmitted for review.');}catch(Throwable $e){if(isset($file))$this->removeBenefitFile($file['path']);$this->json('error',$e->getMessage(),[],422);}}
@@ -459,7 +460,7 @@ class BenefitsController extends Controller {
     private function removeBenefitFile($relative){$root=realpath(ROOT_PATH.'public/uploads/benefits');$path=realpath(ROOT_PATH.'public/'.str_replace(['/',chr(92)],DIRECTORY_SEPARATOR,ltrim((string)$relative,'/'.chr(92))));if($root&&$path&&is_file($path)&&strpos($path,$root.DIRECTORY_SEPARATOR)===0)unlink($path);}
 
     public function deleteAllowance() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_benefits');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');

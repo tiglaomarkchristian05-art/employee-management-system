@@ -7,6 +7,10 @@ class Notification extends Model {
 
     public function createForUser($userId, $title, $message, $type = 'info', $link = null, $module = null, $relatedId = null) {
         if ((int)$userId <= 0) return null;
+        $module=$module?:$this->inferModule($link);
+        $relatedId=$relatedId===null?$this->inferRelatedId($link):(int)$relatedId;
+        $existing=$this->db->fetchOne("SELECT id FROM notifications WHERE user_id=? AND is_read=0 AND title=? AND message=? AND link <=> ? AND module <=> ? AND related_id <=> ? LIMIT 1",[(int)$userId,$title,$message,$link,$module,$relatedId]);
+        if($existing)return (int)$existing['id'];
         return $this->create([
             'user_id' => (int)$userId,
             'title' => $title,
@@ -26,7 +30,9 @@ class Notification extends Model {
     }
 
     public function createForAdmins($title, $message, $type = 'info', $link = null, $module = null, $relatedId = null) {
-        $users = $this->db->fetchAll("SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.is_active=1 AND r.name IN ('Super Admin','HR Manager')");
+        $module=$module?:$this->inferModule($link);
+        $roles=in_array($module,['training','documents','compliance','benefits','loans','separation','certifications'],true)?"'HR Manager','HR Officer'":"'Super Admin'";
+        $users = $this->db->fetchAll("SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.is_active=1 AND r.name IN ({$roles})");
         foreach ($users as $user) $this->createForUser($user['id'], $title, $message, $type, $link, $module, $relatedId);
         return count($users);
     }
@@ -63,7 +69,7 @@ class Notification extends Model {
     private function inferModule($link) {
         if(!$link)return 'system';
         if(stripos($link,'page=benefits_loans')!==false)return 'loans';
-        foreach(['training','documents','compliance','benefits','separation'] as $module)if(stripos($link,'page='.$module)!==false)return $module;
+        foreach(['training','documents','compliance','benefits','separation','certifications'] as $module)if(stripos($link,'page='.$module)!==false)return $module;
         return 'system';
     }
 

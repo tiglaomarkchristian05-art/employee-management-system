@@ -5,7 +5,7 @@ require_once APP_PATH . 'Models/Training.php';
 
 class TrainingRecommendation extends Model {
     protected $table = 'ai_training_recommendations';
-    public const ALGORITHM_VERSION = 'content_similarity_v1';
+    public const ALGORITHM_VERSION = 'content_similarity_v2_certifications';
     public const MINIMUM_SCORE = 25.0;
 
     private const PROFICIENCY = ['Beginner'=>1,'Intermediate'=>2,'Advanced'=>3,'Expert'=>4];
@@ -23,14 +23,15 @@ class TrainingRecommendation extends Model {
             $this->db->query("UPDATE ai_training_recommendations SET status='Expired' WHERE employee_id=? AND status='Pending Review'", [(int)$employee['id']]);
             $history = $this->history((int)$employee['id']);
             $skills = $this->skillGaps((int)$employee['id']);
+            $certifications = $this->certificationNeeds((int)$employee['id']);
             foreach ($courses as $course) {
-                $result = $this->score($employee, $course, $history, $skills);
+                $result = $this->score($employee, $course, $history, $skills, $certifications);
                 if (!$result || $result['score'] < self::MINIMUM_SCORE) continue;
                 $existing = $this->db->fetchOne('SELECT * FROM ai_training_recommendations WHERE employee_id=? AND training_id=?', [(int)$employee['id'],(int)$course['id']]);
                 if ($existing && in_array($existing['status'], ['Accepted','Dismissed','Assigned'], true)) continue;
                 $data = [
                     'recommendation_score'=>$result['score'], 'priority'=>$result['priority'],
-                    'reason'=>$result['reason'], 'detected_gap'=>$result['gap'],
+                    'reason'=>$result['reason'], 'detected_gap'=>$result['gap'], 'data_basis_used'=>$result['basis'],
                     'score_breakdown'=>json_encode($result['breakdown'], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),
                     'algorithm_version'=>self::ALGORITHM_VERSION, 'status'=>'Pending Review',
                     'generated_at'=>date('Y-m-d H:i:s'), 'reviewed_by'=>null, 'reviewed_at'=>null,
@@ -79,7 +80,12 @@ class TrainingRecommendation extends Model {
         return $gaps;
     }
 
-    private function score(array $employee,array $course,array $history,array $skills): ?array {
+    private function certificationNeeds(int $employeeId): array {
+        $setting=$this->db->fetchOne("SELECT setting_value FROM system_settings WHERE setting_key='certification_expiration_warning_days'");$days=max(1,min(365,(int)($setting['setting_value']??60)));
+        return $this->db->fetchAll("SELECT certification_name,certification_type,expiration_date,CASE WHEN expiration_date<CURRENT_DATE THEN 'Expired' ELSE 'Expiring Soon' END status FROM employee_certifications WHERE employee_id=? AND status NOT IN ('Pending Verification','Revoked') AND expiration_date IS NOT NULL AND expiration_date<=DATE_ADD(CURRENT_DATE,INTERVAL ? DAY)",[$employeeId,$days]);
+    }
+
+    private function score(array $employee,array $course,array $history,array $skills,array $certifications): ?array {
         $courseId=(int)$course['id'];
         $active=$history['by_course'][$courseId]??null;
         if($active && !in_array($active['status'],['Cancelled','Completed','Failed'],true))return null;
@@ -104,6 +110,9 @@ class TrainingRecommendation extends Model {
         $departmentMatch=$course['target_department_id']!==null
             ? ((int)$course['target_department_id']===(int)$employee['department_id']?1.0:0.0)
             : $this->cosine($employee['department_name'],$courseText);
+        $certificationNeed=0.0;$matchedCertification=null;
+        $certificationCourseText=implode(' ',array_filter([$course['certification_provided'],$course['title'],$course['required_skills'],$course['category_name']]));
+        foreach($certifications as $certification){$credentialText=$certification['certification_name'];$match=$this->cosine($credentialText,$certificationCourseText);if($match<0.30)continue;$weight=$certification['status']==='Expired'?35.0:25.0;if($weight>$certificationNeed){$certificationNeed=$weight;$matchedCertification=$certification;}}
         $historyGap=1.0;
         $assessmentNeed=0.0;$weakTitles=[];
         foreach($history['rows'] as $row){
@@ -116,9 +125,10 @@ class TrainingRecommendation extends Model {
             'position_match'=>round($positionMatch*25,2),
             'department_match'=>round($departmentMatch*15,2),
             'training_history_gap'=>round($historyGap*15,2),
-            'assessment_need'=>round($assessmentNeed*10,2)
+            'assessment_need'=>round($assessmentNeed*10,2),
+            'certification_need'=>$certificationNeed
         ];
-        $score=round(array_sum($breakdown),2);
+        $score=min(100,round(array_sum($breakdown),2));
         $priority=$score>=70?'High':($score>=45?'Medium':'Low');
         $reasons=[];$gaps=[];
         if($skillSimilarity>=0.15&&$skills){$matched=array_values(array_filter($skills,fn($s)=>$this->cosine($s['name'],$courseText)>0));$names=array_slice(array_column($matched,'name'),0,3);if($names){$gaps=array_merge($gaps,$names);$reasons[]='Matches proficiency gaps in '.implode(', ',$names).'.';}}
@@ -127,9 +137,15 @@ class TrainingRecommendation extends Model {
         if($completed)$reasons[]='Retraining is due under the configured '.$course['retraining_months'].'-month recurrence.';
         else $reasons[]='No completed record for this training was found.';
         if($assessmentNeed>0)$reasons[]='A weak or failed result in a related category indicates improvement is needed.';
+        if($matchedCertification){$expiry=$matchedCertification['expiration_date']?' on '.$matchedCertification['expiration_date']:'';$reasons[]=$matchedCertification['certification_name'].' is '.strtolower($matchedCertification['status']).$expiry.'; this training is related to its renewal need.';$gaps[]='Certification renewal: '.$matchedCertification['certification_name'];}
         if($prerequisite)$reasons[]='The configured prerequisite has been completed.';
         if(!$gaps)$gaps[]=$assessmentNeed>0?'Assessment improvement: '.$course['category_name']:($course['target_position_name']?:($course['target_department_name']?:'Uncompleted relevant training'));
-        return ['score'=>$score,'priority'=>$priority,'reason'=>implode(' ',$reasons),'gap'=>implode(', ',array_unique($gaps)),'breakdown'=>$breakdown];
+        $basis=['Employee position: '.$employee['position_title'],'Department: '.$employee['department_name'],'Training completion history','Related assessment outcomes'];
+        if($skills)$basis[]='Skills matrix: '.implode(', ',array_slice(array_column($skills,'name'),0,4));
+        if($course['target_position_id'])$basis[]='Configured target position';
+        if($course['target_department_id'])$basis[]='Configured target department';
+        if($matchedCertification)$basis[]='Certification registry: '.$matchedCertification['certification_name'].' ('.$matchedCertification['status'].')';
+        return ['score'=>$score,'priority'=>$priority,'reason'=>implode(' ',$reasons),'gap'=>implode(', ',array_unique($gaps)),'basis'=>implode('; ',array_unique($basis)),'breakdown'=>$breakdown];
     }
 
     private function cosine(string $left,string $right): float {

@@ -177,69 +177,7 @@ function showToast(icon,title){
     const icons={success:'fa-check',error:'fa-xmark',warning:'fa-exclamation',info:'fa-info'};
     Toast.fire({icon,iconHtml:'<i class="fa-solid '+(icons[icon]||'fa-bell')+'" aria-hidden="true"></i>',title});
 }
-// Statutory Tax & Contribution Live Calculator (PH TRAIN Law Rules)
-function calculatePHStatutory(grossSalary) {
-    salary = parseFloat(grossSalary) || 0;
-
-    // SSS (2026 cap 30k MSC)
-    let sssEmp = 0;
-    let sssComp = 0;
-    if (salary > 0) {
-        const msc = Math.min(Math.max(salary, 4000), 30000);
-        sssEmp = msc * 0.045; // 4.5% employee share
-        sssComp = msc * 0.095; // 9.5% employer share
-    }
-
-    // PhilHealth (5% split 50-50, capped at 100k salary)
-    let phEmp = 0;
-    let phComp = 0;
-    if (salary > 0) {
-        const phSalary = Math.min(Math.max(salary, 10000), 100000);
-        const totalPH = phSalary * 0.05;
-        phEmp = totalPH / 2;
-        phComp = totalPH / 2;
-    }
-
-    // Pag-IBIG (HDMF capped at 5k MSC = 200 max)
-    let hdmfEmp = 0;
-    let hdmfComp = 0;
-    if (salary > 0) {
-        hdmfEmp = salary >= 5000 ? 200 : salary * 0.02;
-        hdmfComp = salary >= 5000 ? 200 : salary * 0.02;
-    }
-
-    // Taxable Salary after Statutory
-    const totalStatutoryEmp = sssEmp + phEmp + hdmfEmp;
-    const taxableIncome = Math.max(0, salary - totalStatutoryEmp);
-
-    // BIR TRAIN Law Monthly Income Tax Brackets
-    let birTax = 0;
-    if (taxableIncome <= 20833) {
-        birTax = 0;
-    } else if (taxableIncome <= 33333) {
-        birTax = (taxableIncome - 20833) * 0.15;
-    } else if (taxableIncome <= 66667) {
-        birTax = 1875 + (taxableIncome - 33333) * 0.20;
-    } else if (taxableIncome <= 166667) {
-        birTax = 8541.67 + (taxableIncome - 66667) * 0.25;
-    } else if (taxableIncome <= 666667) {
-        birTax = 33541.67 + (taxableIncome - 166667) * 0.30;
-    } else {
-        birTax = 183541.67 + (taxableIncome - 666667) * 0.35;
-    }
-
-    return {
-        sssEmp: sssEmp.toFixed(2),
-        sssComp: sssComp.toFixed(2),
-        phEmp: phEmp.toFixed(2),
-        phComp: phComp.toFixed(2),
-        hdmfEmp: hdmfEmp.toFixed(2),
-        hdmfComp: hdmfComp.toFixed(2),
-        birTax: birTax.toFixed(2),
-        totalDeduction: (totalStatutoryEmp + birTax).toFixed(2),
-        netTakeHome: (salary - (totalStatutoryEmp + birTax)).toFixed(2)
-    };
-}
+// Statutory previews use the server-side configured calculator; no duplicate client formulas.
 
 // 3. Global Form & Button Processing Loading Protection
 if (window.jQuery) {

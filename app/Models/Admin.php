@@ -12,6 +12,7 @@ class Admin extends Model {
         if(!empty($filters['role'])){$where[]='COALESCE(a.role_name,r.name) = ?';$params[]=$filters['role'];}
         if(!empty($filters['module'])){$where[]='a.module = ?';$params[]=$filters['module'];}
         if(!empty($filters['action'])){$where[]='a.action = ?';$params[]=$filters['action'];}
+        if(!empty($filters['hr_only'])){$where[]="a.module IN ('Employee Directory','Training & Development','AI Training Recommendations','Employee Certifications','Document Management','Contract Management','Government Compliance','Benefits Management','Loans Management','Separation Management','Reports')";}
         $clause=$where?' WHERE '.implode(' AND ',$where):'';
         $from=' FROM audit_logs a LEFT JOIN users u ON a.user_id=u.id LEFT JOIN roles r ON u.role_id=r.id';
         $total=(int)($this->db->fetchOne('SELECT COUNT(*) total'.$from.$clause,$params)['total']??0);

@@ -5,6 +5,8 @@ require_once APP_PATH . 'Models/Compliance.php';
 require_once APP_PATH . 'Models/Employee.php';
 require_once APP_PATH . 'Models/Notification.php';
 
+require_once APP_PATH.'Services/StatutoryCalculator.php';
+
 class ComplianceController extends Controller {
     private $compliance;private $notifications;
     public function __construct(){$this->compliance=new Compliance();$this->notifications=new Notification();}
@@ -12,7 +14,7 @@ class ComplianceController extends Controller {
         Auth::requireAuth();
 
         $employeeModel = new Employee();
-        $isAdmin = Auth::isAdmin();
+        $isAdmin = Auth::isHR();
         $employeeId = $isAdmin ? null : Auth::employeeId();
 
         $data = [
@@ -30,6 +32,10 @@ class ComplianceController extends Controller {
 
     public function calculator() {
         Auth::requireRole(['Super Admin']);
+        if(isset($_GET['gross'])){
+            try{$result=(new StatutoryCalculator())->calculate((float)$_GET['gross']);$this->json('success','Unvalidated legacy demonstration only; requires client/payroll/legal confirmation.',$result);}
+            catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}
+        }
         $this->view('compliance/calculator');
     }
 
@@ -38,7 +44,7 @@ class ComplianceController extends Controller {
         $complianceModel = new Compliance();
         $employeeModel = new Employee();
 
-        $isAdmin = Auth::isAdmin();
+        $isAdmin = Auth::isHR();
         $empId = $isAdmin ? intval($_GET['employee_id'] ?? 0) : Auth::employeeId();
         $year = intval($_GET['year'] ?? 2026);
 
@@ -51,7 +57,7 @@ class ComplianceController extends Controller {
     }
 
     public function generateContribution() {
-        Auth::requireRole(['Super Admin', 'HR Manager', 'Finance']);
+        Auth::requirePermission('manage_compliance');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -64,28 +70,13 @@ class ComplianceController extends Controller {
             $this->json('error', 'Please select a valid employee and gross salary amount.');
         }
 
-        // Live Calculate Statutory
-        $msc = min(max($gross, 4000), 30000);
-        $sssEmp = $msc * 0.045;
-        $sssComp = $msc * 0.095;
-
-        $phSalary = min(max($gross, 10000), 100000);
-        $phEmp = ($phSalary * 0.05) / 2;
-        $phComp = ($phSalary * 0.05) / 2;
-
-        $hdmfEmp = $gross >= 5000 ? 200 : $gross * 0.02;
-        $hdmfComp = $gross >= 5000 ? 200 : $gross * 0.02;
-
-        $statutoryEmp = $sssEmp + $phEmp + $hdmfEmp;
-        $taxable = max(0, $gross - $statutoryEmp);
-
-        // BIR Tax
-        $birTax = 0;
-        if ($taxable > 20833 && $taxable <= 33333) $birTax = ($taxable - 20833) * 0.15;
-        else if ($taxable > 33333 && $taxable <= 66667) $birTax = 1875 + ($taxable - 33333) * 0.20;
-        else if ($taxable > 66667 && $taxable <= 166667) $birTax = 8541.67 + ($taxable - 66667) * 0.25;
-
-        $totalStatutory = $statutoryEmp + $birTax;
+        try{
+            $calculator=new StatutoryCalculator();
+            $period=sprintf('%04d-%02d-01',(int)($_POST['period_year']??date('Y')),(int)($_POST['period_month']??date('n')));
+            $values=$calculator->calculate($gross);
+            $calculator->assertConfirmed($period);
+            extract($values,EXTR_SKIP);
+        }catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}
 
         $periodMonth=max(1,min(12,(int)($_POST['period_month']??date('n'))));$periodYear=max(2000,min(2100,(int)($_POST['period_year']??date('Y'))));
         $existing=$this->compliance->db->fetchOne("SELECT id FROM gov_contributions WHERE employee_id=? AND period_month=? AND period_year=?",[$empId,$periodMonth,$periodYear]);
