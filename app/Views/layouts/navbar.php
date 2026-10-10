@@ -62,7 +62,7 @@ $navbarNotifications = $navbarNotificationModel->getForUser($user['id'], 5);
                 <li><span class="dropdown-header">Logged in as <strong><?= htmlspecialchars($user['username']); ?></strong></span></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item" href="index.php?page=<?= Auth::isSelfService() ? 'my_profile' : 'employees'; ?>"><span class="material-symbols-outlined">person</span><?= Auth::isSelfService() ? 'My Profile' : 'Employee Directory'; ?></a></li>
-                <li><a class="dropdown-item" href="index.php?page=<?= Auth::isSelfService() ? 'notifications' : (Auth::hasRole(['Super Admin']) ? 'admin_settings' : 'admin_users'); ?>"><span class="material-symbols-outlined"><?= Auth::isSelfService() ? 'notifications' : 'manage_accounts'; ?></span><?= Auth::isSelfService() ? 'Notifications' : 'Account Settings'; ?></a></li>
+                <li><a class="dropdown-item" href="index.php?page=account_security"><span class="material-symbols-outlined">manage_accounts</span>Account Security</a></li>
                 <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal"><span class="material-symbols-outlined">logout</span>Log Out</a></li>
             </ul>
         </div>

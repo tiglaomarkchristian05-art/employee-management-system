@@ -4,6 +4,8 @@ require_once ROOT_PATH . 'core/Controller.php';
 require_once APP_PATH . 'Models/Training.php';
 require_once APP_PATH . 'Models/Notification.php';
 require_once APP_PATH . 'Models/Employee.php';
+require_once APP_PATH . 'Models/EmployeeCertification.php';
+require_once APP_PATH . 'Services/TrainingCertificateService.php';
 
 class TrainingController extends Controller {
     private $training;
@@ -16,7 +18,7 @@ class TrainingController extends Controller {
 
     public function dashboard() {
         Auth::requireAuth();
-        $isAdmin=Auth::isAdmin();$employeeId=$isAdmin?null:Auth::employeeId();
+        $isAdmin=Auth::isHR();$employeeId=$isAdmin?null:Auth::employeeId();
         $data=[
             'is_admin'=>$isAdmin,
             'stats'=>$this->training->getDashboardStats($employeeId),
@@ -34,8 +36,8 @@ class TrainingController extends Controller {
     }
 
     public function courses() {
-        Auth::requireAuth();$employeeId=Auth::isAdmin()?null:Auth::employeeId();
-        $this->view('training/courses',['courses'=>Auth::isAdmin()?$this->training->getCoursesWithDetails(true):$this->training->getAvailableCourses($employeeId),'my_registrations'=>Auth::isAdmin()?[]:$this->training->getRegistrationsWithDetails($employeeId)]);
+        Auth::requireAuth();$employeeId=Auth::isHR()?null:Auth::employeeId();
+        $this->view('training/courses',['courses'=>Auth::isHR()?$this->training->getCoursesWithDetails(true):$this->training->getAvailableCourses($employeeId),'my_registrations'=>Auth::isHR()?[]:$this->training->getRegistrationsWithDetails($employeeId)]);
     }
 
     public function details() {
@@ -43,10 +45,10 @@ class TrainingController extends Controller {
         if(!$course){http_response_code(404);exit('Training not found.');}
         $registration=Auth::isSelfService()?$this->training->getRegistrationForEmployee($id,Auth::employeeId()):null;
         if(Auth::isSelfService() && !$registration && (!$course['is_active'] || !in_array($course['status'],['Scheduled','Ongoing'],true))) Auth::deny();
-        $this->view('training/details',['course'=>$course,'registration'=>$registration,'participants'=>Auth::isAdmin()?$this->training->getRegistrationsWithDetails(null,$id):[]]);
+        $this->view('training/details',['course'=>$course,'registration'=>$registration,'participants'=>Auth::isHR()?$this->training->getRegistrationsWithDetails(null,$id):[]]);
     }
 
-    public function matrix() {Auth::requireAuth();$this->view('training/matrix',['skills'=>$this->training->getSkillsMatrix(Auth::isAdmin()?null:Auth::employeeId())]);}
+    public function matrix() {Auth::requireAuth();$this->view('training/matrix',['skills'=>$this->training->getSkillsMatrix(Auth::isHR()?null:Auth::employeeId())]);}
 
     public function store() {
         $this->adminPost();
@@ -99,7 +101,7 @@ class TrainingController extends Controller {
         try {
             $result=$this->training->assignEmployees($courseId,(array)$ids,Auth::user()['id']);$course=$this->training->getCourseWithDetails($courseId);
             foreach($result['assigned'] as $employeeId)$this->notifications->createForEmployee($employeeId,'Training assignment',"You were assigned to {$course['title']} on {$course['start_date']}.",'info',"index.php?page=training_details&id={$courseId}");
-            AuditLogger::log('ASSIGN_TRAINING','Training & Development',"Assigned ".count($result['assigned'])." employee(s) to training ID {$courseId}",null,['record_type'=>'training','record_id'=>$courseId,'new_value'=>['employee_ids'=>$result['assigned']]]);
+        AuditLogger::log('TRAINING_ASSIGNED','Training & Development',"Assigned ".count($result['assigned'])." employee(s) to training ID {$courseId}",null,['record_type'=>'training','record_id'=>$courseId,'new_value'=>['employee_ids'=>$result['assigned']]]);
             $message=count($result['assigned']).' employee(s) assigned.';if($result['duplicates'])$message.=' '.count($result['duplicates']).' duplicate active assignment(s) skipped.';
             $this->json('success',$message,$result);
         } catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}
@@ -131,20 +133,20 @@ class TrainingController extends Controller {
         $status=sanitize_input($_POST['status']??'');if(!in_array($status,Training::PARTICIPATION_STATUSES,true))$this->json('error','Invalid participation status.',[],422);
         $attendance=max(0,min(100,(int)($_POST['attendance_percentage']??0)));$assessment=$_POST['assessment_result']??'';$assessment=$assessment===''?null:(float)$assessment;
         if($assessment!==null&&($assessment<0||$assessment>100))$this->json('error','Assessment result must be between 0 and 100.',[],422);
-        if($status==='Completed'&&($attendance<=0||$assessment===null))$this->json('error','Record attendance and an assessment result before completion.',[],422);
+        $course=$this->training->find($registration['course_id']);
+        if($status==='Completed' && ($failure=TrainingCompletionRules::failure(array_merge($course,['attendance_percentage'=>$attendance,'assessment_result'=>$assessment]))))$this->json('error',$failure,[],422);
         try {
             $data=['status'=>$status,'attendance_percentage'=>$attendance,'assessment_result'=>$assessment,'result_notes'=>sanitize_input($_POST['result_notes']??'')];
             if($status==='Completed'&&!empty($registration['completed_at']))$data['completed_at']=$registration['completed_at'];elseif($status==='Completed')$data['completed_at']=date('Y-m-d');else $data['completed_at']=null;
             if($certificate=$this->saveUpload('certificate_file','certificates',['pdf'],5*1024*1024))$data['certificate_file']=$certificate;
-            if($status==='Completed'&&empty($data['certificate_file'])&&empty($registration['certificate_file']))$data['certificate_file']='generated';
             $previous=$registration['status'];$this->training->db->update('training_registrations',$data,"id=?",[$id]);
             if($previous==='Applied'&&in_array($status,['Confirmed','Cancelled'],true))$this->notifications->createForEmployee($registration['employee_id'],'Training application '.strtolower($status),"Your application for {$registration['course_title']} was {$status}.",$status==='Confirmed'?'success':'error',"index.php?page=training_details&id={$registration['course_id']}");
             if($assessment!==null)$this->notifications->createForEmployee($registration['employee_id'],'Training result published',"Your result for {$registration['course_title']} is {$assessment}%.",'info',"index.php?page=training_details&id={$registration['course_id']}");
-            if($status==='Completed')$this->notifications->createForEmployee($registration['employee_id'],'Certificate available',"Your certificate for {$registration['course_title']} is ready.",'success',"index.php?page=training_certificate&id={$id}");
+            if($status==='Completed'){$service=new TrainingCertificateService();[$eligible]=$service->eligibility($id);if($eligible){if(!empty($data['certificate_file'])){(new EmployeeCertification())->syncTrainingCertificate($id,(int)Auth::user()['id']);$issued=true;}elseif(empty($registration['certificate_file'])||$registration['certificate_file']==='generated'){$result=$service->generate($id,(int)Auth::user()['id']);$issued=$result['generated'];if($issued)AuditLogger::log('CERTIFICATE_GENERATED','Training & Development','Generated PDF certificate '.$result['number'].' for registration ID '.$id,null,['record_type'=>'training_registration','record_id'=>$id,'new_value'=>['certificate_number'=>$result['number'],'version'=>$result['version']]]);}else{$issued=!empty($registration['certificate_file']);}if(!empty($issued)){$duplicate=$this->training->db->fetchOne("SELECT id FROM notifications WHERE module='training' AND related_id=? AND title='Certificate available' AND created_at>=DATE_SUB(NOW(),INTERVAL 1 DAY)",[$id]);if(!$duplicate)$this->notifications->createForEmployee($registration['employee_id'],'Certificate available',"Your certificate for {$registration['course_title']} is now available.",'success',"index.php?page=training_certificate&id={$id}",'training',$id);}}}
             AuditLogger::log('UPDATE_TRAINING_PARTICIPANT','Training & Development',"Updated registration ID {$id}: {$status}, attendance {$attendance}, result ".($assessment??'N/A'),null,['record_type'=>'training_registration','record_id'=>$id,'old_value'=>['status'=>$previous,'attendance_percentage'=>$registration['attendance_percentage']??null,'assessment_result'=>$registration['assessment_result']??null],'new_value'=>['status'=>$status,'attendance_percentage'=>$attendance,'assessment_result'=>$assessment,'certificate_issued'=>!empty($data['certificate_file'])]]);
             if($attendance!==(int)($registration['attendance_percentage']??0))AuditLogger::log('RECORD_TRAINING_ATTENDANCE','Training & Development',"Recorded {$attendance}% attendance for registration ID {$id}",null,['record_type'=>'training_registration','record_id'=>$id,'old_value'=>['attendance_percentage'=>$registration['attendance_percentage']??null],'new_value'=>['attendance_percentage'=>$attendance]]);
             if($assessment!==null)AuditLogger::log('UPDATE_TRAINING_RESULT','Training & Development',"Published result for registration ID {$id}",null,['record_type'=>'training_registration','record_id'=>$id,'old_value'=>['assessment_result'=>$registration['assessment_result']??null],'new_value'=>['assessment_result'=>$assessment]]);
-            if(!empty($data['certificate_file']))AuditLogger::log('ISSUE_TRAINING_CERTIFICATE','Training & Development',"Issued certificate for registration ID {$id}",null,['record_type'=>'training_registration','record_id'=>$id,'new_value'=>['certificate_issued'=>true]]);
+            if(!empty($data['certificate_file']))AuditLogger::log('ISSUE_TRAINING_CERTIFICATE','Training & Development',"Issued uploaded certificate for registration ID {$id}",null,['record_type'=>'training_registration','record_id'=>$id,'new_value'=>['certificate_issued'=>true]]);
             $this->json('success','Participant record updated.');
         } catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}
     }
@@ -157,7 +159,7 @@ class TrainingController extends Controller {
     }
 
     public function downloadMaterial() {Auth::requireAuth();$course=$this->training->getCourseWithDetails((int)($_GET['id']??0));if(!$course||!$course['material_file']){http_response_code(404);exit('Training material not found.');}if(Auth::isSelfService()&&!$this->training->getRegistrationForEmployee($course['id'],Auth::employeeId()))Auth::deny();$this->downloadFile($course['material_file'],'training-material');}
-    public function downloadRequirement() {Auth::requireAdmin();$registration=$this->training->getRegistration((int)($_GET['id']??0));if(!$registration||!$registration['requirements_file']){http_response_code(404);exit('Requirement file not found.');}$this->downloadFile($registration['requirements_file'],'training-requirement');}
+    public function downloadRequirement() {Auth::requirePermission('manage_training');$registration=$this->training->getRegistration((int)($_GET['id']??0));if(!$registration||!$registration['requirements_file']){http_response_code(404);exit('Requirement file not found.');}$this->downloadFile($registration['requirements_file'],'training-requirement');}
 
     public function quiz() {
         Auth::requireSelfService();$courseId=(int)($_GET['course_id']??0);$registration=$this->training->getRegistrationForEmployee($courseId,Auth::employeeId());
@@ -176,14 +178,14 @@ class TrainingController extends Controller {
     }
 
     public function certificate() {
-        Auth::requireAuth();$registration=$this->training->getRegistration((int)($_GET['id']??0));
+        Auth::requireAuth();$id=(int)($_GET['id']??0);$service=new TrainingCertificateService();$registration=$service->record($id);
         if(!$registration||$registration['status']!=='Completed'||!$registration['certificate_file']){http_response_code(404);exit('Completed training certificate not found.');}
         Auth::requireOwnership($registration['employee_id']);
-        if($registration['certificate_file']!=='generated')$this->downloadFile($registration['certificate_file'],'training-certificate');
-        $number='CERT-'.str_pad((string)$registration['id'],6,'0',STR_PAD_LEFT);$name=htmlspecialchars($registration['first_name'].' '.$registration['last_name'],ENT_QUOTES,'UTF-8');$title=htmlspecialchars($registration['course_title'],ENT_QUOTES,'UTF-8');$date=htmlspecialchars($registration['end_date']?:$registration['start_date'],ENT_QUOTES,'UTF-8');$score=number_format((float)($registration['assessment_result']??$registration['quiz_score']),1);
-        header('Content-Type:text/html;charset=UTF-8');header('Content-Disposition:attachment; filename="'.strtolower($number).'.html"');header('X-Content-Type-Options:nosniff');AuditLogger::log('DOWNLOAD_CERTIFICATE','Training & Development',"Downloaded {$number}");
-        echo '<!doctype html><html><head><meta charset="utf-8"><title>'.$number.'</title><style>body{font-family:Arial;background:#f4f7fb;padding:40px;color:#111827}.certificate{max-width:900px;margin:auto;background:#fff;border:12px double #5145e5;padding:64px;text-align:center}.eyebrow,.course{color:#5145e5}.name{font-size:42px;margin:25px}.course{font-size:25px}.meta{margin-top:35px;color:#64748b;line-height:1.8}</style></head><body><main class="certificate"><div class="eyebrow">CORE 3 HRMS</div><h1>Certificate of Completion</h1><p>This certifies that</p><div class="name">'.$name.'</div><p>has successfully completed</p><div class="course">'.$title.'</div><div class="meta">Completion date: '.$date.'<br>Assessment result: '.$score.'%<br>Certificate number: '.$number.'</div></main></body></html>';exit;
+        if($registration['certificate_file']==='generated'){$service->generate($id,(int)Auth::user()['id']);$registration=$service->record($id);}
+        AuditLogger::log('CERTIFICATE_DOWNLOADED','Training & Development','Downloaded certificate '.($registration['certificate_number']?:'for registration '.$id),null,['record_type'=>'training_registration','record_id'=>$id]);$this->downloadFile($registration['certificate_file'],$registration['certificate_number']?:'training-certificate');
     }
+
+    public function regenerateCertificate() {$this->adminPost();$id=(int)($_POST['registration_id']??0);$reason=trim($_POST['reason']??'');if($reason==='')$this->json('error','A regeneration reason is required.',[],422);try{$result=(new TrainingCertificateService())->generate($id,(int)Auth::user()['id'],true,$reason);AuditLogger::log('CERTIFICATE_REGENERATED','Training & Development','Regenerated '.$result['number'].' as version '.$result['version'].'. Reason: '.$reason,null,['record_type'=>'training_registration','record_id'=>$id,'new_value'=>['certificate_number'=>$result['number'],'version'=>$result['version'],'reason'=>$reason]]);$this->json('success','Certificate regenerated as version '.$result['version'].'.');}catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}}
 
     private function courseInput() {
         $title=sanitize_input($_POST['title']??'');$description=trim($_POST['description']??'');$category=(int)($_POST['category_id']??0);$trainer=(int)($_POST['trainer_id']??0);$start=$_POST['start_date']??'';$end=$_POST['end_date']??'';$capacity=(int)($_POST['capacity']??0);$status=sanitize_input($_POST['status']??'Draft');$venue=sanitize_input($_POST['venue']??'');$courseType=sanitize_input($_POST['course_type']??'Internal');
@@ -202,7 +204,15 @@ class TrainingController extends Controller {
         if(!$start||!$end||strtotime($end)<strtotime($start))throw new RuntimeException('End date must be on or after the start date.');
         if($capacity<1||$capacity>10000)throw new RuntimeException('Capacity must be between 1 and 10,000.');
         if(!in_array($status,Training::COURSE_STATUSES,true))throw new RuntimeException('Invalid training status.');
-        return ['title'=>$title,'description'=>$description,'category_id'=>$category,'trainer_id'=>$trainer?:null,'venue'=>$venue,'start_date'=>$start,'end_date'=>$end,'capacity'=>$capacity,'requirements'=>trim($_POST['requirements']??''),'target_department_id'=>$targetDepartment?:null,'target_position_id'=>$targetPosition?:null,'required_skills'=>trim($_POST['required_skills']??''),'prerequisite_course_id'=>$prerequisite?:null,'difficulty_level'=>$difficulty,'certification_provided'=>sanitize_input($_POST['certification_provided']??'')?:null,'retraining_months'=>$retraining,'course_type'=>$courseType,'duration_hours'=>max(1,(int)($_POST['duration_hours']??8)),'budget'=>max(0,(float)($_POST['budget']??0)),'status'=>$status,'is_active'=>$status==='Cancelled'?0:1];
+        $purpose=trim($_POST['training_purpose']??'');$needReason=trim($_POST['training_need_reason']??'');$basis=sanitize_input($_POST['basis_source']??'');$outcome=trim($_POST['expected_outcome']??'');
+        $basisOptions=['Skill Gap','Position Requirement','Department Requirement','Low Assessment Result','Missing Certification','Expired Certification','Compliance Requirement','Supervisor Request','Training Needs Analysis','AI Recommendation'];
+        if($purpose===''||$needReason===''||$outcome===''||!in_array($basis,$basisOptions,true))throw new RuntimeException('Training purpose, need/reason, valid basis source, and expected outcome are required.');
+        $existing=!empty($_POST['id'])?$this->training->find((int)$_POST['id']):[];
+        $assessmentRequired=$_POST['assessment_required']??($existing['assessment_required']??1);
+        $passing=$_POST['minimum_passing_score']??($existing['minimum_passing_score']??75);
+        $minimum=$_POST['minimum_attendance_percentage']??($existing['minimum_attendance_percentage']??'');
+        if(!in_array((string)$assessmentRequired,['0','1'],true)||!is_numeric($passing)||(float)$passing<0||(float)$passing>100||($minimum!==''&&$minimum!==null&&(!is_numeric($minimum)||(float)$minimum<0||(float)$minimum>100)))throw new RuntimeException('Certificate rules must use valid percentages between 0 and 100.');
+        return ['assessment_required'=>(int)$assessmentRequired,'minimum_passing_score'=>(float)$passing,'minimum_attendance_percentage'=>$minimum===''||$minimum===null?null:(float)$minimum,'title'=>$title,'description'=>$description,'training_purpose'=>$purpose,'training_need_reason'=>$needReason,'basis_source'=>$basis,'expected_outcome'=>$outcome,'category_id'=>$category,'trainer_id'=>$trainer?:null,'venue'=>$venue,'start_date'=>$start,'end_date'=>$end,'capacity'=>$capacity,'requirements'=>trim($_POST['requirements']??''),'target_department_id'=>$targetDepartment?:null,'target_position_id'=>$targetPosition?:null,'required_skills'=>trim($_POST['required_skills']??''),'prerequisite_course_id'=>$prerequisite?:null,'difficulty_level'=>$difficulty,'certification_provided'=>sanitize_input($_POST['certification_provided']??'')?:null,'certification_validity_months'=>max(0,min(120,(int)($_POST['certification_validity_months']??0))),'retraining_months'=>$retraining,'course_type'=>$courseType,'duration_hours'=>max(1,(int)($_POST['duration_hours']??8)),'budget'=>max(0,(float)($_POST['budget']??0)),'status'=>$status,'is_active'=>$status==='Cancelled'?0:1];
     }
 
     private function adminPost(){Auth::requirePermission('manage_training');Auth::requireMethod('POST');$this->csrf();}

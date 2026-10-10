@@ -5,8 +5,9 @@ require_once __DIR__ . '/AuditLogger.php';
 
 class Auth {
     private static $permissions = [
-        'Super Admin' => ['*'],
-        'HR Manager' => ['view_management_dashboard', 'manage_employees', 'manage_employee_accounts', 'manage_training', 'manage_documents', 'manage_compliance', 'manage_benefits', 'manage_loans', 'manage_separation', 'view_audit_logs', 'view_notifications'],
+        'Super Admin' => ['view_system_dashboard', 'manage_users', 'manage_roles', 'manage_settings', 'manage_master_data', 'view_audit_logs', 'view_security', 'view_notifications'],
+        'HR Manager' => ['view_management_dashboard', 'manage_employees', 'manage_training', 'manage_documents', 'manage_compliance', 'manage_benefits', 'manage_loans', 'manage_separation', 'view_reports', 'view_audit_logs', 'view_notifications'],
+        'HR Officer' => ['view_management_dashboard', 'manage_employees', 'manage_training', 'manage_documents', 'manage_compliance', 'manage_benefits', 'manage_loans', 'manage_separation', 'view_reports', 'view_audit_logs', 'view_notifications'],
         'Department Head' => ['view_own_dashboard', 'view_own_training', 'enroll_training', 'view_own_documents', 'upload_own_documents', 'view_own_contributions', 'submit_claim', 'submit_loan', 'view_own_benefits', 'view_own_clearance', 'submit_separation', 'view_own_profile', 'view_notifications', 'approve_department_clearance'],
         'Employee' => ['view_own_dashboard', 'view_own_training', 'enroll_training', 'view_own_documents', 'upload_own_documents', 'view_own_contributions', 'submit_claim', 'submit_loan', 'view_own_benefits', 'view_own_clearance', 'submit_separation', 'view_own_profile', 'view_notifications'],
     ];
@@ -39,11 +40,23 @@ class Auth {
         } else {
             $roles = array_map('strtolower', $roles);
         }
-        return in_array($userRole, $roles) || $userRole === 'super admin' || $userRole === 'admin';
+        return in_array($userRole, $roles, true);
     }
 
     public static function isAdmin() {
         return self::hasRole(['Super Admin', 'HR Manager']);
+    }
+
+    public static function isSystemAdmin() {
+        return strtolower((string)($_SESSION['role_name'] ?? '')) === 'super admin';
+    }
+
+    public static function isHR() {
+        return in_array(strtolower((string)($_SESSION['role_name'] ?? '')), ['hr manager','hr officer'], true);
+    }
+
+    public static function isHROperator() {
+        return self::isHR() && self::can('view_management_dashboard');
     }
 
     public static function isEmployee() {
@@ -58,13 +71,15 @@ class Auth {
         if (!self::check()) return false;
         $role = $_SESSION['role_name'] ?? 'Employee';
         $allowed = self::$permissions[$role] ?? [];
-        return in_array('*', $allowed, true) || in_array($permission, $allowed, true);
+        return in_array($permission, $allowed, true);
     }
 
     public static function employeeId() {
         self::requireAuth();
         $employeeId = intval($_SESSION['employee_id'] ?? 0);
-        if (self::isSelfService() && $employeeId <= 0) self::deny('Your account is not linked to an employee profile.');
+        // A missing profile must never become a null (unfiltered) employee scope.
+        // HR controllers deliberately use null before calling this method.
+        if (!self::isHR() && $employeeId <= 0) self::deny('Your account is not linked to an employee profile.');
         return $employeeId ?: null;
     }
 
@@ -151,6 +166,11 @@ class Auth {
         if (!self::isAdmin()) self::deny('Administrator or HR access is required.');
     }
 
+    public static function requireHR() {
+        self::requireAuth();
+        if (!self::isHR()) self::deny('HR access is required for this action.');
+    }
+
     public static function requireEmployee() {
         self::requireAuth();
         if (!self::isEmployee()) self::deny('Employee access is required.');
@@ -164,7 +184,7 @@ class Auth {
 
     public static function requireOwnership($recordEmployeeId) {
         self::requireAuth();
-        if (!self::isAdmin() && intval($recordEmployeeId) !== intval(self::employeeId())) {
+        if (!self::isHR() && intval($recordEmployeeId) !== intval(self::employeeId())) {
             self::deny('You may only access records linked to your employee account.');
         }
     }

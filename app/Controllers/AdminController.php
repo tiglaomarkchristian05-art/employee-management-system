@@ -6,15 +6,12 @@ require_once APP_PATH . 'Models/Employee.php';
 
 class AdminController extends Controller {
     public function users() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_users');
         $userModel = new User();
         $adminModel = new Admin();
         $employeeModel = new Employee();
 
         $roles = $adminModel->getRoles();
-        if (Auth::hasRole(['HR Manager']) && !Auth::hasRole(['Super Admin'])) {
-            $roles = array_values(array_filter($roles, fn($role) => $role['name'] === 'Employee'));
-        }
         $data = [
             'users'     => $userModel->getAllUsersWithDetails(),
             'roles'     => $roles,
@@ -35,6 +32,7 @@ class AdminController extends Controller {
             'module' => sanitize_input($_GET['module'] ?? ''),
             'action' => sanitize_input($_GET['action'] ?? '')
         ];
+        if (Auth::isHR()) $filters['hr_only'] = true;
         $pagination = $adminModel->getAuditLogs($filters, (int)($_GET['p'] ?? 1), 20);
         $this->view('admin/logs', [
             'logs' => $pagination['items'],
@@ -47,10 +45,56 @@ class AdminController extends Controller {
     public function settings() {
         Auth::requireRole(['Super Admin']);
         $adminModel = new Admin();
+        $account = (new User())->findByUsername((string)Auth::user()['username']);
         $data = [
-            'settings' => $adminModel->getSystemSettings()
+            'settings' => $adminModel->getSystemSettings(),
+            'mfa_mode' => $account['mfa_mode'] ?? 'email',
+            'mfa_email' => $account['email'] ?? ''
         ];
         $this->view('admin/settings', $data);
+    }
+
+    public function accountSecurity() {
+        Auth::requireAuth();
+        $account = (new User())->findByUsername((string)Auth::user()['username']);
+        if (!$account || (int)$account['id'] !== (int)Auth::user()['id']) {
+            http_response_code(403);
+            exit('Account could not be verified.');
+        }
+        $this->view('admin/account_security', [
+            'mfa_mode' => $account['mfa_mode'] ?? 'email',
+            'mfa_email' => $account['email'] ?? ''
+        ]);
+    }
+
+    public function saveMfaMode() {
+        Auth::requireAuth();
+        Auth::requireMethod('POST');
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
+
+        $mode = (string)($_POST['mfa_mode'] ?? '');
+        if (!in_array($mode, ['email', 'off'], true)) $this->json('error', 'Select a supported verification mode.', [], 422);
+        $account = (new User())->findByUsername((string)Auth::user()['username']);
+        if (!$account || (int)$account['id'] !== (int)Auth::user()['id']) $this->json('error', 'Account could not be verified.', [], 403);
+        $previous = $account['mfa_mode'] ?? 'email';
+        if ($mode === $previous) $this->json('success', 'Your verification setting is already up to date.');
+        if ($mode === 'off' && !verify_password((string)($_POST['current_password'] ?? ''), $account['password'])) {
+            AuditLogger::log('MFA_MODE_CHANGE_REJECTED', 'Account Security', 'Incorrect current password during MFA disable request.', (int)$account['id']);
+            $this->json('error', 'Enter your current password to turn off email verification.', [], 401);
+        }
+        if ($mode === 'email' && !filter_var((string)($account['email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
+            $this->json('error', 'Add a valid MFA email address before turning email verification on.', [], 422);
+        }
+
+        $db = Database::getInstance();
+        $db->query('UPDATE users SET mfa_mode=?,auth_version=auth_version+1 WHERE id=?', [$mode, (int)$account['id']]);
+        if ($mode === 'off') $db->query('UPDATE mfa_login_challenges SET consumed_at=NOW() WHERE user_id=? AND consumed_at IS NULL', [(int)$account['id']]);
+        $_SESSION['auth_version'] = (int)$db->fetchOne('SELECT auth_version FROM users WHERE id=?', [(int)$account['id']])['auth_version'];
+        AuditLogger::log('MFA_MODE_CHANGED', 'Account Security', 'Account email verification changed from '.$previous.' to '.$mode.'.', (int)$account['id'], [
+            'record_type' => 'user', 'record_id' => (int)$account['id'],
+            'old_value' => ['mfa_mode' => $previous], 'new_value' => ['mfa_mode' => $mode]
+        ]);
+        $this->json('success', $mode === 'off' ? 'Email verification is off for your account.' : 'Email verification is on for your account.');
     }
 
     public function backup() {
@@ -97,7 +141,7 @@ class AdminController extends Controller {
 
         $settings = $_POST['settings'] ?? [];
         if (!is_array($settings)) $this->json('error', 'Invalid settings payload.', [], 422);
-        $allowed = ['company_name', 'tax_year', 'currency_symbol', 'theme_mode'];
+        $allowed = ['company_name', 'tax_year', 'currency_symbol', 'theme_mode', 'contract_expiration_warning_days'];
         $settings = array_intersect_key($settings, array_flip($allowed));
         foreach ($allowed as $key) {
             if (!array_key_exists($key, $settings) || trim((string)$settings[$key]) === '') {
@@ -108,11 +152,13 @@ class AdminController extends Controller {
         $taxYear = trim((string)$settings['tax_year']);
         $currency = trim((string)$settings['currency_symbol']);
         $theme = strtolower(trim((string)$settings['theme_mode']));
+        $contractWarningDays = (int)$settings['contract_expiration_warning_days'];
         if (mb_strlen($companyName) > 150) $this->json('error', 'Company Name must not exceed 150 characters.', [], 422);
         if (!preg_match('/^\d{4}$/', $taxYear) || (int)$taxYear < 2000 || (int)$taxYear > 2100) $this->json('error', 'Tax Year must be between 2000 and 2100.', [], 422);
         if (mb_strlen($currency) > 5) $this->json('error', 'Currency Symbol must not exceed 5 characters.', [], 422);
         if (!in_array($theme, ['light', 'dark'], true)) $this->json('error', 'Theme Mode must be light or dark.', [], 422);
-        $settings = ['company_name'=>$companyName, 'tax_year'=>$taxYear, 'currency_symbol'=>$currency, 'theme_mode'=>$theme];
+        if (!in_array($contractWarningDays, [30, 60, 90], true)) $this->json('error', 'Contract expiration warning period must be 30, 60, or 90 days.', [], 422);
+        $settings = ['company_name'=>$companyName, 'tax_year'=>$taxYear, 'currency_symbol'=>$currency, 'theme_mode'=>$theme, 'contract_expiration_warning_days'=>(string)$contractWarningDays];
         $db = Database::getInstance();
         foreach ($settings as $key => $value) {
             $cleanKey = sanitize_input($key);
@@ -156,7 +202,7 @@ class AdminController extends Controller {
     }
 
     public function createUser() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_users');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -188,7 +234,9 @@ class AdminController extends Controller {
         if (!$selectedRole) {
             $this->json('error', 'Invalid account role.');
         }
+        if ($selectedRole['name'] === 'Employee' && !$empId) $this->json('error', 'An Employee account must be linked to an employee profile.', [], 422);
         $linkedEmployee = $empId ? $userModel->db->fetchOne("SELECT email FROM employees WHERE id=?", [$empId]) : null;
+        if ($empId && !$linkedEmployee) $this->json('error', 'The selected employee profile does not exist.', [], 422);
         if ($mfaEmail === '' && empty($linkedEmployee['email'])) {
             $this->json('error', 'A registered MFA email is required for every user account.');
         }
@@ -215,7 +263,7 @@ class AdminController extends Controller {
     }
 
     public function toggleUserStatus() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_users');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -236,13 +284,13 @@ class AdminController extends Controller {
         $userModel->invalidateSessions($userId);
 
         $statusStr = $newStatus ? 'enabled' : 'disabled';
-        AuditLogger::log($newStatus ? 'ACCOUNT_ENABLED' : 'ACCOUNT_DISABLED', 'Account Security', "User ID {$userId} was {$statusStr}.");
+        AuditLogger::log($newStatus ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', 'Account Security', "User ID {$userId} was {$statusStr}.", null, ['record_type'=>'user','record_id'=>$userId,'new_value'=>['is_active'=>$newStatus]]);
         AuditLogger::log('SESSIONS_INVALIDATED', 'Account Security', "Sessions invalidated for user ID {$userId} after account status change.");
         $this->json('success', "User account '{$u['username']}' is now {$statusStr}!");
     }
 
     public function updateUser() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_users');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -264,7 +312,9 @@ class AdminController extends Controller {
         if (Auth::hasRole(['HR Manager']) && !Auth::hasRole(['Super Admin'])) $roleId = 4;
         $selectedRole = $userModel->db->fetchOne("SELECT id, name FROM roles WHERE id = ?", [$roleId]);
         if (!$selectedRole) $this->json('error', 'Invalid account role.');
+        if ($selectedRole['name'] === 'Employee' && !$empId) $this->json('error', 'An Employee account must be linked to an employee profile.', [], 422);
         $linkedEmployee = $empId ? $userModel->db->fetchOne("SELECT email FROM employees WHERE id=?", [$empId]) : null;
+        if ($empId && !$linkedEmployee) $this->json('error', 'The selected employee profile does not exist.', [], 422);
         if ($mfaEmail === '' && empty($linkedEmployee['email'])) $this->json('error', 'A registered MFA email is required for every user account.');
         if ($empId && $userModel->db->fetchOne("SELECT id FROM users WHERE employee_id = ? AND id <> ?", [$empId, $userId])) {
             $this->json('error', 'This employee already has a linked user account.');
@@ -280,7 +330,7 @@ class AdminController extends Controller {
 
         if ($roleChanged) {
             $userModel->invalidateSessions($userId);
-            AuditLogger::log('ROLE_CHANGED', 'Account Security', "Role changed for user ID {$userId}.", null, ['record_type'=>'user','record_id'=>$userId,'old_value'=>['role_id'=>(int)$user['role_id']],'new_value'=>['role_id'=>$roleId]]);
+            AuditLogger::log('ROLE_ASSIGNED', 'Account Security', "Role assigned for user ID {$userId}.", null, ['record_type'=>'user','record_id'=>$userId,'old_value'=>['role_id'=>(int)$user['role_id']],'new_value'=>['role_id'=>$roleId]]);
             AuditLogger::log('SESSIONS_INVALIDATED', 'Account Security', "Sessions invalidated for user ID {$userId} after role change.");
         }
         if ($mfaChanged) {
@@ -294,7 +344,7 @@ class AdminController extends Controller {
     }
 
     public function deleteUser() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_users');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');
@@ -319,7 +369,7 @@ class AdminController extends Controller {
     }
 
     public function resetPassword() {
-        Auth::requireRole(['Super Admin', 'HR Manager']);
+        Auth::requirePermission('manage_users');
         Auth::requireMethod('POST');
         if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
             $this->json('error', 'Invalid CSRF token.');

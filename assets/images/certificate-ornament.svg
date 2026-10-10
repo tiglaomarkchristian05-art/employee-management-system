@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1123" height="794" viewBox="0 0 1123 794">
+  <rect width="1123" height="794" fill="#FFFFFF"/>
+  <path d="M110 0H206L0 206V112Z" fill="#EEF2FF"/>
+  <path d="M160 0H190L0 190V160Z" fill="#F8F9FF"/>
+  <path d="M1010 794H911L1123 581V681Z" fill="#F2F5FF"/>
+  <path d="M1060 794H1032L1123 703V731Z" fill="#EAF0FF"/>
+  <path d="M24 28H79V18H1044V28H1099V73H1109V721H1099V766H1044V776H79V766H24V721H14V73H24Z" fill="none" stroke="#4553FF" stroke-width="2.2"/>
+  <path d="M32 36H87V26H1036V36H1091V81H1101V713H1091V758H1036V768H87V758H32V713H22V81H32Z" fill="none" stroke="#6671FF" stroke-width="1.05"/>
+  <path d="M40 44H95V34H1028V44H1083V89H1093V705H1083V750H1028V760H95V750H40V705H30V89H40Z" fill="none" stroke="#D7DFFF" stroke-width="1"/>
+  <g fill="none" stroke="#CDD9FF" stroke-opacity=".42" stroke-width=".8">
+    <path d="M18 170C160 120 257 240 400 244S655 312 809 248 1012 177 1105 213"/>
+    <path d="M18 180C160 130 257 250 400 254S655 322 809 258 1012 187 1105 223"/>
+    <path d="M18 190C160 140 257 260 400 264S655 332 809 268 1012 197 1105 233"/>
+    <path d="M18 200C160 150 257 270 400 274S655 342 809 278 1012 207 1105 243"/>
+    <path d="M18 210C160 160 257 280 400 284S655 352 809 288 1012 217 1105 253"/>
+    <path d="M18 220C160 170 257 290 400 294S655 362 809 298 1012 227 1105 263"/>
+    <path d="M18 330C132 283 213 350 340 421M18 341C132 294 213 361 340 432M18 352C132 305 213 372 340 443M18 363C132 316 213 383 340 454"/>
+  </g>
+  <g fill="none" stroke="#5970FA" stroke-width="1.2">
+    <circle cx="986" cy="118" r="62"/>
+    <circle cx="986" cy="118" r="56" stroke-width="2"/>
+    <circle cx="986" cy="118" r="50" stroke="#A8B5FF"/>
+  </g>
+  <circle cx="986" cy="118" r="66" fill="none" stroke="#ABB8FF" stroke-width="1" stroke-dasharray="3 3"/>
+  <path d="M958 132Q961 150 978 157M1014 132Q1011 150 994 157" fill="none" stroke="#7C91D5" stroke-width="1.8"/>
+  <g fill="#7C91D5">
+    <path d="M961 139l-7-7 2 9ZM964 146l-8-4 4 8ZM969 152l-8-2 6 7ZM1011 139l7-7-2 9ZM1008 146l8-4-4 8ZM1003 152l8-2-6 7Z"/>
+  </g>
+  <!-- CERTIFICATE_SEAL_LOGO -->
+  <text x="986" y="119" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="10" fill="#07144F">SYSTEM</text>
+  <text x="986" y="132" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="10" fill="#07144F">VERIFIED</text>
+  <g fill="#4553FF"><path d="m978 149 2 3-2 3-2-3ZM986 147l2 4-2 4-2-4ZM994 149l2 3-2 3-2-3Z"/></g>
+</svg>

@@ -15,6 +15,7 @@ require_once APP_PATH . 'Controllers/DashboardController.php';
 require_once APP_PATH . 'Controllers/EmployeeController.php';
 require_once APP_PATH . 'Controllers/TrainingController.php';
 require_once APP_PATH . 'Controllers/TrainingRecommendationController.php';
+require_once APP_PATH . 'Controllers/CertificationController.php';
 require_once APP_PATH . 'Controllers/DocumentController.php';
 require_once APP_PATH . 'Controllers/ComplianceController.php';
 require_once APP_PATH . 'Controllers/BenefitsController.php';
@@ -132,6 +133,21 @@ switch ($page) {
         break;
     case 'training_certificate':
         (new TrainingController())->certificate();
+        break;
+    case 'training_certificate_regenerate':
+        (new TrainingController())->regenerateCertificate();
+        break;
+    case 'certifications':
+        (new CertificationController())->index();
+        break;
+    case 'certifications_save':
+        (new CertificationController())->save();
+        break;
+    case 'certifications_verify':
+        (new CertificationController())->verify();
+        break;
+    case 'certifications_download':
+        (new CertificationController())->download();
         break;
 
     case 'documents':
@@ -290,6 +306,9 @@ switch ($page) {
         (new BenefitsController())->deleteAllowance();
         break;
 
+    case 'separation_assigned':
+        (new SeparationController())->assigned();
+        break;
     case 'separation':
         (new SeparationController())->index();
         break;
@@ -372,8 +391,14 @@ switch ($page) {
     case 'admin_settings':
         (new AdminController())->settings();
         break;
+    case 'account_security':
+        (new AdminController())->accountSecurity();
+        break;
     case 'admin_save_settings':
         (new AdminController())->saveSettings();
+        break;
+    case 'admin_save_mfa_mode':
+        (new AdminController())->saveMfaMode();
         break;
     case 'admin_backup':
         (new AdminController())->backup();

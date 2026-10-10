@@ -16,7 +16,7 @@ require APP_PATH . 'Views/layouts/sidebar.php';
         <form method="GET" class="row g-2 align-items-center">
             <input type="hidden" name="page" value="compliance_bir2316">
             <div class="col-md-6">
-                <?php if (Auth::isAdmin()): ?>
+                <?php if (Auth::isHR()): ?>
                 <select class="form-select" name="employee_id" onchange="this.form.submit()">
                     <?php foreach ($employees as $e): ?>
                         <option value="<?= $e['id']; ?>" <?= ($bir_data && $bir_data['id'] == $e['id']) ? 'selected' : ''; ?>>

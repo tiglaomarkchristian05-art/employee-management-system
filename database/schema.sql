@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `last_failed_login_at` DATETIME NULL,
   `auth_version` INT UNSIGNED NOT NULL DEFAULT 1,
   `mfa_email` VARCHAR(190) NULL,
+  `mfa_mode` ENUM('email','off') NOT NULL DEFAULT 'email',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`),
   FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE SET NULL
@@ -204,7 +205,7 @@ CREATE TABLE IF NOT EXISTS `documents` (
 CREATE TABLE IF NOT EXISTS `contracts` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `employee_id` INT NOT NULL,
-  `contract_type` ENUM('Employment', 'Probation', 'Regularization', 'Consultancy', 'Internship') DEFAULT 'Employment',
+  `contract_type` VARCHAR(80) NOT NULL DEFAULT 'Employment',
   `start_date` DATE NOT NULL,
   `end_date` DATE NULL,
   `status` ENUM('Active', 'Renewed', 'Expired', 'Terminated') DEFAULT 'Active',

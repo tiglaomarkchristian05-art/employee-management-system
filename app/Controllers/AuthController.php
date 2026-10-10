@@ -39,6 +39,11 @@ class AuthController extends Controller {
             unset($_SESSION['anonymous_login_failures'],$_SESSION['anonymous_login_locked_until']);
             $users->resetLoginFailures($user['id']);
             if($expired)$_SESSION['login_after_lockout_expiration']=1;
+            if(($user['mfa_mode']??'email')==='off'){
+                Database::getInstance()->query('UPDATE mfa_login_challenges SET consumed_at=NOW() WHERE user_id=? AND consumed_at IS NULL',[$user['id']]);
+                AuditLogger::log('MFA_DISABLED_ACCOUNT_LOGIN','Authentication','Password-only sign-in used under this account’s MFA setting.',$user['id']);
+                $this->completeLogin($user);
+            }
             $this->startMfa($user);
         }
         $this->view('auth/login');

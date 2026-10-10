@@ -124,13 +124,15 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold">Link to Employee Profile (Optional)</label>
+                        <label class="form-label text-secondary fw-bold">Link to Employee Profile (Required for Employee role)</label>
                         <select class="form-select" name="employee_id">
-                            <option value="">-- No Linked Employee (Admin Only) --</option>
+                            <option value="">-- Select an employee --</option>
                             <?php foreach ($employees as $emp): ?>
+                                <?php if (in_array((int)$emp['id'], array_map('intval', array_column($users, 'employee_id')), true)) continue; ?>
                                 <option value="<?= $emp['id']; ?>"><?= htmlspecialchars($emp['first_name'] . ' ' . $emp['last_name'] . ' (' . $emp['employee_code'] . ')'); ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <small class="text-secondary">Only profiles without a user account appear here. Linked demo employees are listed in the table above.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -173,9 +175,9 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold">Link to Employee Profile (Optional)</label>
+                        <label class="form-label text-secondary fw-bold">Link to Employee Profile (Required for Employee role)</label>
                         <select class="form-select" name="employee_id" id="edit_employee_id">
-                            <option value="">-- No Linked Employee (Admin Only) --</option>
+                            <option value="">-- No linked employee --</option>
                             <?php foreach ($employees as $emp): ?>
                                 <option value="<?= $emp['id']; ?>"><?= htmlspecialchars($emp['first_name'] . ' ' . $emp['last_name'] . ' (' . $emp['employee_code'] . ')'); ?></option>
                             <?php endforeach; ?>

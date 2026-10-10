@@ -4,7 +4,8 @@ ALTER TABLE `users`
   ADD COLUMN IF NOT EXISTS `locked_until` DATETIME NULL AFTER `failed_login_attempts`,
   ADD COLUMN IF NOT EXISTS `last_failed_login_at` DATETIME NULL AFTER `locked_until`,
   ADD COLUMN IF NOT EXISTS `auth_version` INT UNSIGNED NOT NULL DEFAULT 1 AFTER `last_failed_login_at`,
-  ADD COLUMN IF NOT EXISTS `mfa_email` VARCHAR(190) NULL AFTER `auth_version`;
+  ADD COLUMN IF NOT EXISTS `mfa_email` VARCHAR(190) NULL AFTER `auth_version`,
+  ADD COLUMN IF NOT EXISTS `mfa_mode` ENUM('email','off') NOT NULL DEFAULT 'email' AFTER `mfa_email`;
 
 CREATE TABLE IF NOT EXISTS `mfa_login_challenges` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

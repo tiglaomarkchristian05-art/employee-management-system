@@ -6,6 +6,8 @@ require_once APP_PATH . 'Models/Training.php';
 require_once APP_PATH . 'Models/Employee.php';
 require_once APP_PATH . 'Models/Notification.php';
 
+require_once APP_PATH.'Services/TrainingCompletionRules.php';
+
 class TrainingRecommendationController extends Controller {
     private TrainingRecommendation $recommendations;
     private Training $training;
@@ -18,7 +20,7 @@ class TrainingRecommendationController extends Controller {
     }
 
     public function index(){
-        Auth::requireAuth();$admin=Auth::isAdmin();$employeeId=$admin?null:Auth::employeeId();
+        Auth::requireAuth();$admin=Auth::isHR();$employeeId=$admin?null:Auth::employeeId();
         $this->view('training/recommendations',[
             'is_admin'=>$admin,
             'recommendations'=>$this->recommendations->recommendations($employeeId),
@@ -46,7 +48,7 @@ class TrainingRecommendationController extends Controller {
         if(!in_array($decision,['Accepted','Dismissed'],true))$this->json('error','Select a valid review decision.',[],422);
         $row=$this->recommendations->find($id);if(!$row||!in_array($row['status'],['Pending Review','Accepted'],true))$this->json('error','Reviewable recommendation not found.',[],404);
         $this->recommendations->update($id,['status'=>$decision,'reviewed_by'=>(int)Auth::user()['id'],'reviewed_at'=>date('Y-m-d H:i:s'),'dismissed_reason'=>$decision==='Dismissed'?($reason?:'Dismissed after HR review'):null]);
-        AuditLogger::log('AI_RECOMMENDATION_'.strtoupper($decision),'AI Training Recommendations','Recommendation ID '.$id.' marked '.$decision.'.',null,['record_type'=>'ai_training_recommendation','record_id'=>$id,'old_value'=>['status'=>$row['status']],'new_value'=>['status'=>$decision,'dismissed_reason'=>$decision==='Dismissed'?$reason:null]]);
+        AuditLogger::log('TRAINING_RECOMMENDATION_'.strtoupper($decision),'AI Training Recommendations','Recommendation ID '.$id.' marked '.$decision.'.',null,['record_type'=>'ai_training_recommendation','record_id'=>$id,'old_value'=>['status'=>$row['status']],'new_value'=>['status'=>$decision,'dismissed_reason'=>$decision==='Dismissed'?$reason:null]]);
         $this->json('success','Recommendation marked '.$decision.'.');
     }
 
@@ -60,7 +62,7 @@ class TrainingRecommendationController extends Controller {
             $course=$this->training->getCourseWithDetails((int)$row['training_id']);
             $this->recommendations->update($id,['status'=>'Assigned','reviewed_by'=>(int)Auth::user()['id'],'reviewed_at'=>date('Y-m-d H:i:s'),'assigned_registration_id'=>(int)$registration['id']]);
             $this->notifications->createForEmployee((int)$row['employee_id'],'Recommended training assigned','HR assigned the recommended training: '.$course['title'].'.','info','index.php?page=training_details&id='.(int)$row['training_id'],'training',(int)$registration['id']);
-            AuditLogger::log('ASSIGN_AI_RECOMMENDED_TRAINING','AI Training Recommendations','Assigned recommendation ID '.$id.' through training registration ID '.$registration['id'].'.',null,['record_type'=>'ai_training_recommendation','record_id'=>$id,'old_value'=>['status'=>$row['status']],'new_value'=>['status'=>'Assigned','training_id'=>(int)$row['training_id'],'employee_id'=>(int)$row['employee_id']]]);
+            AuditLogger::log('TRAINING_ASSIGNED','AI Training Recommendations','Assigned recommendation ID '.$id.' through training registration ID '.$registration['id'].'.',null,['record_type'=>'ai_training_recommendation','record_id'=>$id,'old_value'=>['status'=>$row['status']],'new_value'=>['status'=>'Assigned','training_id'=>(int)$row['training_id'],'employee_id'=>(int)$row['employee_id']]]);
             $this->json('success','Recommended training assigned through the existing training workflow.');
         }catch(Throwable $e){$this->json('error',$e->getMessage(),[],422);}
     }
@@ -72,7 +74,7 @@ class TrainingRecommendationController extends Controller {
         if(!$employee||!$course)$this->json('error','Select a valid employee and training.',[],422);
         $attendance=max(0,min(100,(int)($_POST['attendance_percentage']??0)));$score=$_POST['assessment_result']??'';$score=$score===''?null:(float)$score;
         if($score!==null&&($score<0||$score>100))$this->json('error','Assessment result must be between 0 and 100.',[],422);
-        if($status==='Completed'&&($attendance<=0||$score===null))$this->json('error','Completed history requires attendance and an assessment result.',[],422);
+        if($status==='Completed'&&($failure=TrainingCompletionRules::failure(array_merge($course,['attendance_percentage'=>$attendance,'assessment_result'=>$score]))))$this->json('error',$failure,[],422);
         $completedAt=$_POST['completed_at']??'';if($status==='Completed'&&(!$completedAt||strtotime($completedAt)>time()))$this->json('error','Provide a valid historical completion date.',[],422);
         $existing=$this->training->getRegistrationForEmployee($courseId,$employeeId);$data=['status'=>$status,'attendance_percentage'=>$attendance,'assessment_result'=>$score,'result_notes'=>trim($_POST['result_notes']??''),'completed_at'=>$status==='Completed'?$completedAt:null,'assigned_by'=>(int)Auth::user()['id']];
         if($existing)$this->recommendations->db->update('training_registrations',$data,'id=?',[(int)$existing['id']]);else $this->recommendations->db->insert('training_registrations',['course_id'=>$courseId,'employee_id'=>$employeeId]+$data);
@@ -81,10 +83,10 @@ class TrainingRecommendationController extends Controller {
     }
 
     public function export(){
-        Auth::requireRole(['Super Admin','HR Manager']);
+        Auth::requirePermission('manage_training');
         $rows=$this->recommendations->recommendations();header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="ai-training-needs-'.date('Ymd').'.csv"');
-        $out=fopen('php://output','w');fputcsv($out,['Employee Code','Employee','Department','Position','Recommended Training','Score','Priority','Detected Gap','Explanation','Status','Algorithm','Generated']);
-        foreach($rows as $r)fputcsv($out,[$r['employee_code'],$r['employee_name'],$r['department_name'],$r['position_title'],$r['training_title'],$r['recommendation_score'],$r['priority'],$r['detected_gap'],$r['reason'],$r['status'],$r['algorithm_version'],$r['generated_at']]);fclose($out);exit;
+        $out=fopen('php://output','w');fputcsv($out,['Employee Code','Employee','Department','Position','Recommended Training','Score','Priority','Detected Gap','Explanation','Data/Basis Used','Status','Algorithm','Generated']);
+        foreach($rows as $r)fputcsv($out,[$r['employee_code'],$r['employee_name'],$r['department_name'],$r['position_title'],$r['training_title'],$r['recommendation_score'],$r['priority'],$r['detected_gap'],$r['reason'],$r['data_basis_used']??'Employee position, department, skills, training history, and assessment outcomes',$r['status'],$r['algorithm_version'],$r['generated_at']]);fclose($out);exit;
     }
 
     private function adminPost(){Auth::requirePermission('manage_training');Auth::requireMethod('POST');if(!verify_csrf_token($_POST['csrf_token']??''))$this->json('error','Invalid CSRF token.',[],403);}

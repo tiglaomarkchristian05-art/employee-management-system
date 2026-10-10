@@ -7,9 +7,11 @@ Options -Indexes
     RewriteEngine On
 
     # Never expose application internals or private runtime data directly.
-    RewriteRule ^(?:app|config|core|database|scripts)(?:/|$) - [F,L,NC]
+    RewriteRule ^(?:app|config|core|database|scripts|tests)(?:/|$) - [F,L,NC]
     RewriteRule ^(?:backups?|documents?)(?:/|$) - [F,L,NC]
     RewriteRule ^public/uploads(?:/|$) - [F,L,NC]
+    RewriteRule ^uploads/loans(?:/|$) - [F,L,NC]
+    RewriteRule ^sess_[A-Za-z0-9,-]+$ - [F,L,NC]
 
     # Block hidden files (except ACME's .well-known directory) and sensitive
     # development/database artifacts if they are ever placed in the web root.

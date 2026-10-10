@@ -16,5 +16,16 @@
 .DS_Store
 Thumbs.db
 
+# Composer dependencies and local installer
+/vendor/
+/composer.phar
+
 # Logs
 *.log
+
+# Local test/runtime state (never part of application deployment)
+sess_*
+__pycache__/
+*.pyc
+/tests/artifacts/
+/sample-training-material-data-privacy.pdf

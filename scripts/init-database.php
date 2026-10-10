@@ -75,6 +75,10 @@ $pdo->exec(deploymentSql($root . '/database/phase11_notifications.sql'));
 $pdo->exec(deploymentSql($root . '/database/phase12_audit_trail.sql'));
 $pdo->exec(deploymentSql($root . '/database/phase15_ai_training.sql'));
 $pdo->exec(deploymentSql($root . '/database/security_hardening.sql'));
+$pdo->exec(deploymentSql($root . '/database/preoral_defense_recommendations.sql'));
+$pdo->exec(deploymentSql($root . '/database/employee_certification_registry.sql'));
+$pdo->exec(deploymentSql($root . '/database/automated_training_certificates.sql'));
+$pdo->exec(deploymentSql($root . '/database/panel_readiness_rules.sql'));
 $bootstrapMfaEmail = trim((string)(getenv('MFA_ADMIN_EMAIL') ?: ''));
 if ($bootstrapMfaEmail !== '') {
     if (!filter_var($bootstrapMfaEmail, FILTER_VALIDATE_EMAIL)) {
