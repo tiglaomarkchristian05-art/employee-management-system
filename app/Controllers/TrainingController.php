@@ -182,6 +182,11 @@ class TrainingController extends Controller {
         if(!$registration||$registration['status']!=='Completed'||!$registration['certificate_file']){http_response_code(404);exit('Completed training certificate not found.');}
         Auth::requireOwnership($registration['employee_id']);
         if($registration['certificate_file']==='generated'){$service->generate($id,(int)Auth::user()['id']);$registration=$service->record($id);}
+        $certificatePath=ROOT_PATH.'public/'.str_replace(['/',chr(92)],DIRECTORY_SEPARATOR,ltrim($registration['certificate_file'],'/'.chr(92)));
+        if(!is_file($certificatePath)){
+            try{$restored=$service->restoreMissingGeneratedFile($id);AuditLogger::log('CERTIFICATE_FILE_RESTORED','Training & Development','Restored missing generated certificate '.$restored['number'].' version '.$restored['version'],null,['record_type'=>'training_registration','record_id'=>$id,'new_value'=>['certificate_number'=>$restored['number'],'version'=>$restored['version']]]);}
+            catch(Throwable $e){http_response_code(404);exit('Certificate file not found. Please contact HR.');}
+        }
         AuditLogger::log('CERTIFICATE_DOWNLOADED','Training & Development','Downloaded certificate '.($registration['certificate_number']?:'for registration '.$id),null,['record_type'=>'training_registration','record_id'=>$id]);$this->downloadFile($registration['certificate_file'],$registration['certificate_number']?:'training-certificate');
     }
 
