@@ -309,11 +309,14 @@ try {
     if ($presentationMode) {
         $positive = $ensure('separations', ['employee_id'=>$employeeIds['Ava'],'separation_type'=>'Resignation'], [
             'notice_date'=>$date('-40 days'),'proposed_last_working_date'=>$date('-10 days'),
-            'effective_date'=>$date('-10 days'),'reason'=>'CORE3 DEMO: completed fictional separation.',
+            'final_working_date'=>$date('-10 days'),'effective_date'=>$date('-10 days'),'reason'=>'CORE3 DEMO: completed fictional separation.',
             'status'=>'Clearance Ongoing','reviewed_by'=>$hr,'clearance_created_at'=>date('Y-m-d H:i:s'),
             'final_pay_processing_status'=>'Not Ready','eligible_for_final_pay'=>0
         ]);
         $positiveId = (int)$positive['id'];
+        if (empty($positive['final_working_date'])) {
+            $db->update('separations', ['final_working_date'=>$positive['effective_date'] ?: $date('-10 days')], 'id=?', [$positiveId]);
+        }
         foreach ([
             [$documentation,'Documentation, Visa & OEC',$hr],
             [$it,'IT & Systems (Local Demo)',$itApprover],
