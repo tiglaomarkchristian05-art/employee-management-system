@@ -41,7 +41,7 @@ $isHRAdmin = Auth::hasRole(['Super Admin', 'HR Manager']);
                         <td class="fw-bold text-light"><code><?= htmlspecialchars($u['username']); ?></code></td>
                         <td><?= htmlspecialchars($u['first_name'] ? $u['first_name'] . ' ' . $u['last_name'] : 'System Admin'); ?></td>
                         <td><span class="badge badge-soft-primary"><?= htmlspecialchars($u['role_name']); ?></span></td>
-                        <td><span class="badge <?= !empty($u['effective_mfa_email'])?'badge-soft-success':'badge-soft-danger'; ?>"><?= !empty($u['effective_mfa_email'])?'Required / Ready':'Required / Missing email'; ?></span></td>
+                        <td><?php if (($u['mfa_mode'] ?? 'email') === 'off'): ?><span class="badge badge-soft-warning">Off</span><?php else: ?><span class="badge <?= !empty($u['effective_mfa_email'])?'badge-soft-success':'badge-soft-danger'; ?>"><?= !empty($u['effective_mfa_email'])?'Required / Ready':'Required / Missing email'; ?></span><?php endif; ?></td>
                         <td>
                             <?php if ($u['is_active']): ?>
                                 <span class="badge badge-soft-success">Active</span>
