@@ -103,6 +103,7 @@ class AdminController extends Controller {
 
         if (isset($_GET['download']) && $_GET['download'] === 'sql') {
             AuditLogger::log('EXPORT_DATABASE_BACKUP', 'System Admin', 'Exported a live SQL backup of the application database.');
+            $_SESSION['core3_presentation_backup_requested_at'] = time();
             header('Content-Type: application/sql; charset=UTF-8');
             header('Content-Disposition: attachment; filename="apexhr_backup_' . date('Y-m-d_H-i-s') . '.sql"');
             header('X-Content-Type-Options: nosniff');
@@ -112,6 +113,37 @@ class AdminController extends Controller {
         }
 
         $this->view('admin/backup');
+    }
+
+    public function preparePresentationData() {
+        Auth::requireRole(['Super Admin']);
+        Auth::requireMethod('POST');
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) $this->json('error', 'Invalid CSRF token.', [], 403);
+        if (($_POST['confirmation'] ?? '') !== 'PREPARE CORE3 DEMO') $this->json('error', 'Type PREPARE CORE3 DEMO to continue.', [], 422);
+        $backupRequestedAt = (int)($_SESSION['core3_presentation_backup_requested_at'] ?? 0);
+        if ($backupRequestedAt === 0 || time() - $backupRequestedAt > 1800) {
+            $this->json('error', 'Download a fresh SQL backup from this page before preparing presentation records.', [], 409);
+        }
+        $admin = (new User())->findByUsername((string)Auth::user()['username']);
+        if (!$admin || !verify_password((string)($_POST['current_password'] ?? ''), $admin['password'])) {
+            $this->json('error', 'Current administrator password is incorrect.', [], 401);
+        }
+        try {
+            define('CORE3_PRESENTATION_SEED_AUTHORIZED', true);
+            require ROOT_PATH . 'scripts/seed-core3-local-demo.php';
+            $result = $GLOBALS['core3_presentation_seed_result'] ?? ['accounts'=>[], 'created'=>0];
+        } catch (Throwable $error) {
+            error_log('Core 3 presentation setup failed: ' . $error->getMessage());
+            $this->json('error', 'Presentation setup was rolled back. Check application logs and confirm the live database has the expected base records.', [], 500);
+        }
+        try {
+            AuditLogger::log('PREPARE_PRESENTATION_DATA', 'System Admin', 'Prepared fictional Core 3 presentation records; newly created accounts are disabled.', (int)$admin['id']);
+        } catch (Throwable $auditError) {
+            error_log('Core 3 presentation setup audit failed: ' . $auditError->getMessage());
+        }
+        unset($_SESSION['core3_presentation_backup_requested_at']);
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        $this->json('success', 'Presentation records prepared. Save new passwords once, then activate only the accounts needed for your rehearsal.', $result);
     }
 
     public function restore() {

@@ -403,6 +403,9 @@ switch ($page) {
     case 'admin_backup':
         (new AdminController())->backup();
         break;
+    case 'admin_prepare_presentation_data':
+        (new AdminController())->preparePresentationData();
+        break;
     case 'admin_restore':
         (new AdminController())->restore();
         break;
