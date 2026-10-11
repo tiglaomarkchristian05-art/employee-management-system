@@ -127,8 +127,9 @@ try {
     $financeApprover = (int)$required('users', ['username'=>'demo.finance_approver'])['id'];
 
     // Fresh demo courses are necessary: the original welding course ended before this demo date.
-    $tradeCategory = (int)$required('training_categories', ['id'=>4])['id'];
-    $privacyCategory = (int)$required('training_categories', ['id'=>5])['id'];
+    $tradeCategory = (int)$required('training_categories', ['name'=>'Skilled Trade & Safety Certifications'])['id'];
+    $privacyCategory = (int)$required('training_categories', ['name'=>'Compliance, Data Privacy & Information Security'])['id'];
+    $originalWelding = (int)$required('training_courses', ['title'=>'SMAW 6G Pipe Welding Trade Certification'])['id'];
     $welding = (int)$ensure('training_courses', ['title'=>'LOCAL DEMO - SMAW 6G Certification Renewal'], [
         'category_id'=>$tradeCategory,'description'=>'Fictional local test course for renewal comparisons.',
         'training_purpose'=>'Renew expired trade certification','training_need_reason'=>'Certification expires or expired',
@@ -153,7 +154,7 @@ try {
         'status'=>'Failed','attendance_percentage'=>100,'quiz_score'=>42,'assessment_result'=>42,
         'result_notes'=>'LOCAL DEMO: low assessment supports skill gap.'
     ]);
-    $ensure('training_registrations', ['employee_id'=>$employeeIds['Liza'],'course_id'=>3], [
+    $ensure('training_registrations', ['employee_id'=>$employeeIds['Liza'],'course_id'=>$originalWelding], [
         'status'=>'Completed','attendance_percentage'=>100,'quiz_score'=>91,'assessment_result'=>91,
         'completed_at'=>$date('-30 days'),'result_notes'=>'LOCAL DEMO: prior completed welding course.'
     ]);
