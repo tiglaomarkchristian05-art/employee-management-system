@@ -6,7 +6,7 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 class CertificatePdfRenderer {
-    public function render(array $record, string $number, string $verification, string $issuedAt, string $company): string {
+    public function render(array $record, string $number, string $verification, string $issuedAt, string $company, ?int $certificateVersion = null): string {
         $escape = static fn($value) => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
         $name = $escape(trim($record['first_name'] . ' ' . $record['last_name']));
         $course = $escape($record['course_title']);
@@ -19,7 +19,7 @@ class CertificatePdfRenderer {
         $issueDate = $escape(date('F j, Y', strtotime($issuedAt)));
         $certificateNumber = $escape($number);
         $verificationCode = $escape($verification);
-        $version = (int)$record['certificate_version'] + 1;
+        $version = $certificateVersion ?? ((int)$record['certificate_version'] + 1);
         $duration = (int)($record['duration_hours'] ?? 0);
         $durationText = $duration > 0 ? $duration . ' ' . ($duration === 1 ? 'hour' : 'hours') : 'Not specified';
         $attendanceValue = $record['attendance_percentage'] ?? null;

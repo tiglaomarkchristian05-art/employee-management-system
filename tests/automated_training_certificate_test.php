@@ -19,6 +19,9 @@ try{
     pdfCheck($issued['generated']&&is_file($absolute)&&substr(file_get_contents($absolute),0,4)==='%PDF','eligible completion generates a valid PDF file');
     pdfCheck((bool)preg_match('/^CERT-'.date('Y').'-\d{6}$/',$issued['number']),'certificate number is unique and traceable');
     $again=$service->generate($registrationId,(int)$user['id']);pdfCheck(!$again['generated']&&$again['path']===$issued['path'],'reopening a completed training reuses the certificate');
+    $issuedRecord=$service->record($registrationId);unlink($absolute);$restored=$service->restoreMissingGeneratedFile($registrationId);$restoredRecord=$service->record($registrationId);
+    pdfCheck(is_file($absolute)&&substr(file_get_contents($absolute),0,4)==='%PDF','missing system-generated PDF is restored as a valid PDF');
+    pdfCheck($restored['version']===$issued['version']&&$restoredRecord['certificate_number']===$issuedRecord['certificate_number']&&$restoredRecord['certificate_verification_code']===$issuedRecord['certificate_verification_code']&&$restoredRecord['certificate_issued_at']===$issuedRecord['certificate_issued_at'],'restoration preserves certificate identity, version, and issue date');
     $registry=$db->fetchAll('SELECT * FROM employee_certifications WHERE related_training_registration_id=?',[$registrationId]);pdfCheck(count($registry)===1&&$registry[0]['certificate_number']===$issued['number'],'registry is linked once without duplication');
     pdfCheck($registry[0]['expiration_date']===date('Y-m-d',strtotime('+12 months')),'configured certificate validity sets registry expiration');
     $regenerated=$service->generate($registrationId,(int)$user['id'],true,'Automated formatting test');$paths[]=$regenerated['path'];pdfCheck($regenerated['version']===2&&$regenerated['path']!==$issued['path'],'authorized regeneration creates a preserved second version');
